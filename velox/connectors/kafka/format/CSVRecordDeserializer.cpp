@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-#include "velox/connectors/kafka/KafkaRecordDeserializer.h"
+#include "velox/connectors/kafka/format/CSVRecordDeserializer.h"
 
 namespace facebook::velox::connector::kafka {
 
-    const RowVectorPtr KafkaRecordDeserializer::emptyRow() {
-        return RowVector::createEmpty(outputType_, memoryPool_);
-    }
+const void KafkaCSVRecordDeserializer::deserialize(const std::string & message, const size_t index, VectorPtr & vec) {
 }
- 
+
+const void KafkaCSVRecordDeserializer::deserialize(const std::vector<std::string> & messages, VectorPtr & vec) {
+}
+
+}

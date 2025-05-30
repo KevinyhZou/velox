@@ -67,12 +67,12 @@ namespace facebook::velox::connector::kafka {
         return checkAndGetConfigValue<bool, false>(kEnablePartitionEof, false);
     }
 
-    const uint32_t ConnectionConfig::getConsumeQueueSize() const {
-        return checkAndGetConfigValue<uint32_t, false>(kConsumeMessageQueueSize, defaultConsumeMessageQueueSize);
-    }
-
     const uint32_t ConnectionConfig::getPollMaxBatchSize() const {
         return checkAndGetConfigValue<uint32_t, false>(kPollMaxBatchSize, defaultPollMaxBatchSize);
+    }
+    
+    const bool ConnectionConfig::getEnableBatchProcessData() const {
+        return checkAndGetConfigValue<bool, false>(kProcessDataByBatch, false);
     }
     
     const uint32_t ConnectionConfig::getPollTimeoutMills() const {
@@ -93,6 +93,7 @@ namespace facebook::velox::connector::kafka {
         conf.set("auto.offset.reset", getAutoOffsetReset()); 
         conf.set("queued.min.messages", getQueuedMinMessages());
         conf.set("enable.auto.commit", getEnableAutoCommit());
+        conf.set("auto.commit.interval.ms", 2000);
         conf.set("enable.partition.eof", getEnablePartitionEof()); // Ignore EOF messages
         return conf;
     }

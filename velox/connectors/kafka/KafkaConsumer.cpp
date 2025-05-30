@@ -17,6 +17,7 @@
 #include "velox/connectors/kafka/KafkaConsumer.h"
 #include "cppkafka/buffer.h"
 #include "cppkafka/consumer.h"
+#include <iostream>
 
 namespace facebook::velox::connector::kafka {
 
@@ -42,37 +43,20 @@ namespace facebook::velox::connector::kafka {
         VELOX_CHECK_NOT_NULL(consumer_.get(), "Failed to assign topic partitions: {}, as the cppkafka consumer is null.", tpsString);
         consumer_->assign(tps);
         running_ = true;
-        executor_->add([&]() {
-            consume();
-        });
     }
 
-    void KafkaConsumer::consume() {
-        while (running_) {
-            try {
-                if (queue_->isFull()) {
-                    continue;
-                }
-                cppkafka::Message msg = consumer_->poll(pollTimeOutMillis_);
-                if (msg) {
-                    // If we managed to get a message
-                    if (msg.get_error()) {
-                        // Ignore EOF notifications from rdkafka
-                        if (!msg.is_eof()) {
-                            LOG(ERROR) << "Received error notification: " << msg.get_error();
-                        }
-                    }
-                    else {
-                        const String msgData = msg.get_payload();
-                        if (!queue_->write(msgData)) {
-                            LOG(WARNING) << "Failed to write message: " << msgData << " to the queue, with offseet:" << msg.get_offset();
-                        }
-                    }
-                }
-            } catch (const std::exception & e) {
-                LOG(ERROR) << "Exception happens while consume kafka topic:" << e.what() ;
-            }
+    const void KafkaConsumer::consumeBatch(std::vector<String> & res, size_t & msg_bytes) {
+        const std::vector<cppkafka::Message> msgs = consumer_->poll_batch(pollBatchSize_);
+        for (const auto & msg : msgs) {
+            const String & msgData = msg.get_payload();
+            msg_bytes += msgData.size();
+            res.emplace_back(msgData);
         }
+    }
+
+    const void KafkaConsumer::consumeBatch(std::vector<cppkafka::Message> & msgs) {
+        msgs.clear();
+        msgs = consumer_->poll_batch(pollBatchSize_);
     }
 
     void KafkaConsumer::stop() {

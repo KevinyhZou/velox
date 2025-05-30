@@ -11,21 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# velox_add_library(velox_kafka_config OBJECT KafkaConfig.cpp)
-# velox_link_libraries(velox_kafka_config velox_core velox_exception)
-
 velox_add_library(
-  velox_kafka_connector
+  velox_kafka_connector_format
   OBJECT
-  KafkaConfig.cpp
-  KafkaConsumer.cpp
-  KafkaRecordDeserializer.cpp
-  KafkaTableHandle.cpp
-  KafkaDataSource.cpp
-  KafkaConnector.cpp
-  KafkaConnectorSplit.cpp)
+  CSVRecordDeserializer.cpp
+  JSONRecordDeserializer.cpp
+  RawRecordDeserializer.cpp
+  StreamJSONRecordDeserializer.cpp
+)
 
-add_subdirectory(format)
-
-velox_link_libraries(velox_kafka_connector velox_common_io velox_connector Folly::folly CppKafka::cppkafka)
+velox_link_libraries(velox_kafka_connector_format velox_kafka_connector velox_common_io velox_connector simdjson::simdjson)

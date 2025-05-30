@@ -89,12 +89,12 @@ public:
     static constexpr const char* kConsumeMessageQueueSize = "consume.queue.size";
     /// The startup mode of kafka consumer, its value canbe `group-offsets`, `latest-offsets`, `earliest-offsets`, `timestamp`.
     static constexpr const char* kStartupMode = "scan.startup.mode";
-    static constexpr const uint32_t defaultQueuedMinMessages = 100000;
+    static constexpr const char* kProcessDataByBatch = "enable.batch.process.data";
+    static constexpr const uint32_t defaultQueuedMinMessages = 1000000;
     static constexpr const char* defaultClientSoftwareName = "velox";
     static constexpr const char* defaultClientSoftwareVersion  = "***";
-    static constexpr const uint32_t defaultPollMaxBatchSize = 1000000;
+    static constexpr const uint32_t defaultPollMaxBatchSize = 100;
     static constexpr const uint32_t defaultPollTimeoutMills = 100;
-    static constexpr const uint32_t defaultConsumeMessageQueueSize = 2;
     static constexpr const char* defaultConsumeStartupMode = "group-offsets";
     static constexpr const char* defaultAutoOffsetRest = "latest";
 
@@ -123,6 +123,8 @@ public:
     const uint32_t getConsumeQueueSize() const;
 
     const String getStartupMode() const;
+    
+    const bool getEnableBatchProcessData() const;
 
     cppkafka::Configuration getCppKafkaConfiguration() const;
 };

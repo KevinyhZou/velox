@@ -13,13 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#pragma once
 
 #include "velox/connectors/kafka/KafkaRecordDeserializer.h"
+#include "velox/type/Type.h"
 
 namespace facebook::velox::connector::kafka {
 
-    const RowVectorPtr KafkaRecordDeserializer::emptyRow() {
-        return RowVector::createEmpty(outputType_, memoryPool_);
+class KafkaRawRecordDeserializer : public KafkaRecordDeserializer {
+public:
+    KafkaRawRecordDeserializer(const RowTypePtr & outputType, memory::MemoryPool * memoryPool) : KafkaRecordDeserializer(outputType, memoryPool) {
+        VELOX_CHECK_EQ(outputType_->size(), 1, "Output type size of raw deserializer must be 1.");
+        const TypePtr & childType = outputType_->childAt(0);
+        VELOX_CHECK_EQ(childType->kind(), TypeKind::VARCHAR, "Output type must be Row(String).");
     }
+
+    const void deserialize(const std::string & message, size_t index, VectorPtr & vec) override;
+    const void deserialize(const std::vector<std::string> & messages, VectorPtr & vec) override;
+};
+
 }
- 

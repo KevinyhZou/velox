@@ -17,9 +17,9 @@
 #pragma once
 
 #include "velox/connectors/kafka/KafkaConnectorSplit.h"
+#include "velox/connectors/kafka/KafkaRecordDeserializer.h"
 #include "cppkafka/cppkafka.h"
 #include "cppkafka/topic_partition_list.h"
-#include "librdkafka/rdkafka.h"
 #include "folly/ProducerConsumerQueue.h"
 
 namespace facebook::velox::connector::kafka {
@@ -32,13 +32,9 @@ class KafkaConsumer {
 public:
     KafkaConsumer(
         const CppKafkaConsumerPtr & consumer,
-        const MessageQueuePtr & queue,
         const uint32_t pollTimeOut,
-        const uint32_t pollBatchSize,
-        std::shared_ptr<folly::Executor> & executor) 
+        const uint32_t pollBatchSize) 
     : consumer_(consumer),
-      queue_(queue),
-      executor_(executor),
       pollTimeOutMillis_(pollTimeOut),
       pollBatchSize_(pollBatchSize) {}
     
@@ -50,19 +46,17 @@ public:
 
     void assign(const cppkafka::TopicPartitionList & tps);
 
-    void seek(const cppkafka::TopicPartition & tp);
-
     void stop();
+
+    const void consumeBatch(std::vector<String> & msgs, size_t & msg_bytes);
+
+    const void consumeBatch(std::vector<cppkafka::Message> & msgs);
 
 private:
     CppKafkaConsumerPtr consumer_;
-    MessageQueuePtr queue_;
-    std::shared_ptr<folly::Executor> executor_;
     bool running_ = false;
     std::chrono::milliseconds pollTimeOutMillis_;
     uint32_t pollBatchSize_;
-
-    void consume();
 };
 
 using KafkaConsumerPtr = std::shared_ptr<KafkaConsumer>;

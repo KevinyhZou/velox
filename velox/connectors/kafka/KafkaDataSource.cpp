@@ -16,39 +16,46 @@
 
 #include "velox/connectors/kafka/KafkaDataSource.h"
 #include "velox/connectors/kafka/KafkaTableHandle.h"
+#include "velox/connectors/kafka/format/CSVRecordDeserializer.h"
+#include "velox/connectors/kafka/format/JSONRecordDeserializer.h"
+#include "velox/connectors/kafka/format/RawRecordDeserializer.h"
+#include "velox/connectors/kafka/format/StreamJSONRecordDeserializer.h"
 #include "velox/common/base/RuntimeMetrics.h"
 #include "velox/type/StringView.h"
 #include "velox/vector/FlatVector.h"
+#include "velox/vector/BaseVector.h"
 #include "folly/executors/CPUThreadPoolExecutor.h"
+#include <iostream>
 
 namespace facebook::velox::connector::kafka {
     
     KafkaDataSource::KafkaDataSource(const RowTypePtr & outputType,
       const TableHandlePtr & tableHandle,
       const std::unordered_map<std::string, NonConstColumnHandlePtr> & columnHandles,
-      folly::Executor* executor,
+      folly::Executor*,
       const ConnectorQueryCtx* connectorQueryCtx,
       const ConnectionConfigPtr & config) :
+        queryCtx_(connectorQueryCtx),
         config_(config),
         outputType_(outputType),
-        executor_(std::shared_ptr<folly::Executor>(executor)),
-        queryCtx_(connectorQueryCtx) {
+        processByBatch_(config_->getEnableBatchProcessData()),
+        consumeBatchSize_(config_->getPollMaxBatchSize()) {
         const std::shared_ptr<KafkaTableHandle> kafkaTableHandle = std::dynamic_pointer_cast<KafkaTableHandle>(tableHandle);
         if (kafkaTableHandle) {
             const std::unordered_map<String, String> & tableParams = kafkaTableHandle->tableParameters();
             config_ = config_->setConfigs<ConnectionConfig>(tableParams);
+            if (kafkaTableHandle->projectedDataColumns()) {
+                outputType_ = kafkaTableHandle->projectedDataColumns();
+            }
         } else {
             VELOX_FAIL("The table handle {} is not supported for kafka data source.", tableHandle->connectorId());
         }
-        if (!executor_) {
-            executor_ = std::make_shared<folly::CPUThreadPoolExecutor>(1);
-        }
-        createMessageQueue(config_->getConsumeQueueSize());
         if (consumerCanbeCreated()) {
             cppkafka::Configuration cppKafkaConfig = config_->getCppKafkaConfiguration();
             createConsumer(cppKafkaConfig);
         }
-        createRecordDeserializer(config_->getFormat(), outputType);
+        createMessageQueue(consumeBatchSize_);
+        createRecordDeserializer(config_->getFormat(), outputType_);
     }
 
     bool KafkaDataSource::consumerCanbeCreated() {
@@ -64,10 +71,7 @@ namespace facebook::velox::connector::kafka {
         VELOX_CHECK_NULL(consumer_.get(), "Failed to create kafka consumer as the consumer is not null");
         CppKafkaConsumerPtr cppKafkaConsumer = std::make_shared<cppkafka::Consumer>(config);
         cppKafkaConsumer->set_destroy_flags(RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE);
-        VELOX_CHECK_NOT_NULL(queue_.get(), "Failed to create kafka consumer as the message queue is null");
-        VELOX_CHECK_NOT_NULL(executor_, "Failed to create kafka consumer as the executor is null");
-        consumer_ = std::make_shared<KafkaConsumer>(cppKafkaConsumer, queue_, 
-            config_->getPollTimeoutMills(), config_->getPollMaxBatchSize(), executor_);
+        consumer_ = std::make_shared<KafkaConsumer>(cppKafkaConsumer, config_->getPollTimeoutMills(), consumeBatchSize_);
         String topic = config_->getTopic();
         topics_.emplace_back(topic);
         consumer_->subscribe(topics_);
@@ -75,7 +79,7 @@ namespace facebook::velox::connector::kafka {
 
     void KafkaDataSource::createMessageQueue(const uint32_t size) {
         VELOX_CHECK_GT(size, 0, "Kafka consume message queue size must greater than 0");
-        queue_ = std::make_shared<folly::ProducerConsumerQueue<String>>(size);
+        queue_.reserve(size);
     }
 
     void KafkaDataSource::createRecordDeserializer(const String & format, const RowTypePtr & outputType) {
@@ -88,6 +92,8 @@ namespace facebook::velox::connector::kafka {
         } else {
             VELOX_FAIL_UNSUPPORTED_INPUT_UNCATCHABLE("The data format {} is not supported for kafka.", format);
         }
+        emptyRow_ = deserializer_->emptyRow();
+        outRow_ = deserializer_->emptyRow();
     }
 
     void KafkaDataSource::addSplit(ConnectorSplitPtr split) {
@@ -99,19 +105,38 @@ namespace facebook::velox::connector::kafka {
     }
 
     std::optional<RowVectorPtr> KafkaDataSource::next(uint64_t, velox::ContinueFuture&) {
-        std::optional<RowVectorPtr> row;
-        String msg;
-        if (queue_->read(msg)) {
-            VELOX_CHECK_NOT_NULL(deserializer_.get(), "Failed to deserialize the message, because the deserializer is null.");
-            const RowVectorPtr vec = deserializer_->deserialize(msg);
-            row.emplace(vec);
-            completedRows_ += 1;
-            completedBytes_ += msg.size();
+        VELOX_CHECK_NOT_NULL(deserializer_.get(), "Failed to deserialize the message, because the deserializer is null.");
+        std::optional<RowVectorPtr> res;
+        if (processByBatch_) {
+            size_t msgBytes = 0;
+            std::vector<String> msgs;
+            consumer_->consumeBatch(msgs, msgBytes);
+            if (msgs.empty()) {
+                res.emplace(emptyRow_);
+            } else {
+                completedRows_ += msgs.size();
+                completedBytes_ += msgBytes;
+                outRow_->prepareForReuse();
+                outRow_->resize(msgs.size());
+                deserializer_->deserialize(msgs, outRow_);
+                res.emplace(std::dynamic_pointer_cast<RowVector>(outRow_));
+            }
         } else {
-            const RowVectorPtr vec = deserializer_->emptyRow();
-            row.emplace(vec);
+            if (consumePos_ == queue_.size()) {
+                consumer_->consumeBatch(queue_);
+                consumePos_ = 0;
+                res.emplace(emptyRow_);
+            } else {
+                outRow_->prepareForReuse();
+                outRow_->resize(1);
+                deserializer_->deserialize(queue_[consumePos_].get_payload(), 0, outRow_);
+                completedRows_ += 1;
+                completedBytes_ += queue_[consumePos_].get_payload().get_size();
+                res.emplace(std::dynamic_pointer_cast<RowVector>(outRow_));
+                consumePos_ ++;
+            }
         }
-        return row;
+        return res;
     }
 
     std::unordered_map<String, RuntimeCounter> KafkaDataSource::runtimeStats() {
@@ -122,11 +147,6 @@ namespace facebook::velox::connector::kafka {
     void KafkaDataSource::cancel() {
         if (consumer_) {
             consumer_->stop();
-        }
-        if (executor_) {
-            std::shared_ptr<folly::CPUThreadPoolExecutor> cpuExecutor =
-                std::dynamic_pointer_cast<folly::CPUThreadPoolExecutor>(executor_);
-            cpuExecutor->stop();
         }
     }
 }

@@ -44,6 +44,9 @@ namespace facebook::velox::connector::kafka {
         if (dataColumns_) {
             out << ", data columns: " << dataColumns_->toString();
         }
+        if (projectedDataColumns_) {
+            out << ", projected data columns: " << projectedDataColumns_->toString();
+        }
         if (!tableParameters_.empty()) {
             std::map<std::string, std::string> orderedTableParameters{tableParameters_.begin(), tableParameters_.end()};
             out << ", table parameters: [";
@@ -79,6 +82,9 @@ namespace facebook::velox::connector::kafka {
         if (dataColumns_) {
             obj["dataColumns"] = dataColumns_->serialize();
         }
+        if (projectedDataColumns_) {
+            obj["projectedDataColumns"] = projectedDataColumns_->serialize();
+        }
         folly::dynamic tableParameters = folly::dynamic::object;
         for (const auto& param : tableParameters_) {
             tableParameters[param.first] = param.second;
@@ -111,6 +117,11 @@ namespace facebook::velox::connector::kafka {
             dataColumns = ISerializable::deserialize<RowType>(it->second, context);
         }
 
+        RowTypePtr projectedDataColumns;
+        if (auto it = obj.find("projectedDataColumns"); it != obj.items().end()) {
+            projectedDataColumns = ISerializable::deserialize<RowType>(it->second, context);
+        }
+
         std::unordered_map<std::string, std::string> tableParameters{};
         const auto& tableParametersObj = obj["tableParameters"];
         for (const auto& key : tableParametersObj.keys()) {
@@ -125,6 +136,7 @@ namespace facebook::velox::connector::kafka {
             std::move(subfieldFilters),
             remainingFilter,
             dataColumns,
+            projectedDataColumns,
             tableParameters);
     }
 

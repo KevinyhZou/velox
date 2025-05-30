@@ -17,8 +17,8 @@
 
 #include "velox/type/Type.h"
 #include "velox/vector/ComplexVector.h"
+#include "velox/vector/FlatVector.h"
 #include "velox/common/memory/MemoryPool.h"
-#include "folly/dynamic.h"
 
 namespace facebook::velox::connector::kafka {
 
@@ -33,44 +33,15 @@ public:
         VELOX_CHECK_NOT_NULL(memoryPool_, "Memory pool of record deserializer must not be null.");
     }
 
-    virtual const RowVectorPtr deserialize(const String & message) = 0;
+    virtual const void deserialize(const String & message, const size_t index, VectorPtr & vec) {}
+
+    virtual const void deserialize(const std::vector<String> & messages, VectorPtr & vec) {}
 
     const RowVectorPtr emptyRow();
 
 protected:
     RowTypePtr outputType_;
     memory::MemoryPool * memoryPool_;
-
-    const time_t convertToTimestamp(const String & val, const String & format);
-};
-
-class KafkaJSONRecordDeserializer : public KafkaRecordDeserializer {
-public:
-    KafkaJSONRecordDeserializer(const RowTypePtr & outputType, memory::MemoryPool * memoryPool) : KafkaRecordDeserializer(outputType, memoryPool) {}
-
-    const RowVectorPtr deserialize(const String & message) override;
-
-private:
-    const VectorPtr deserializeField(const folly::dynamic & f, const TypePtr & type);
-};
-
-class KafkaCSVRecordDeserializer : public KafkaRecordDeserializer {
-public:
-    KafkaCSVRecordDeserializer(const RowTypePtr & outputType, memory::MemoryPool * memoryPool) : KafkaRecordDeserializer(outputType, memoryPool) {}
-
-    const RowVectorPtr deserialize(const String & message) override;
-
-};
-
-class KafkaRawRecordDeserializer : public KafkaRecordDeserializer {
-public:
-    KafkaRawRecordDeserializer(const RowTypePtr & outputType, memory::MemoryPool * memoryPool) : KafkaRecordDeserializer(outputType, memoryPool) {
-        VELOX_CHECK_EQ(outputType_->size(), 1, "Output type size of raw deserializer must be 1.");
-        const TypePtr & childType = outputType_->childAt(0);
-        VELOX_CHECK_EQ(childType->kind(), TypeKind::VARCHAR, "Output type must be Row(String).");
-    }
-
-    const RowVectorPtr deserialize(const String & message) override;
 };
 
 using KafkaRecordDeserializerPtr = std::shared_ptr<KafkaRecordDeserializer>;

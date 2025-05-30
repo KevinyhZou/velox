@@ -13,13 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#pragma once
 
 #include "velox/connectors/kafka/KafkaRecordDeserializer.h"
 
 namespace facebook::velox::connector::kafka {
 
-    const RowVectorPtr KafkaRecordDeserializer::emptyRow() {
-        return RowVector::createEmpty(outputType_, memoryPool_);
-    }
+class KafkaCSVRecordDeserializer : public KafkaRecordDeserializer {
+public:
+    KafkaCSVRecordDeserializer(const RowTypePtr & outputType, memory::MemoryPool * memoryPool) : KafkaRecordDeserializer(outputType, memoryPool) {}
+
+    const void deserialize(const std::string & message, size_t index, VectorPtr & vec) override;
+    const void deserialize(const std::vector<std::string> & messages, VectorPtr & vec) override;
+};
+
 }
- 

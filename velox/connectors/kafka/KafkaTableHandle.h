@@ -36,6 +36,7 @@ public:
         common::SubfieldFilters subfieldFilters,
         const core::TypedExprPtr& remainingFilter,
         const RowTypePtr& dataColumns = nullptr,
+        const RowTypePtr& projectedDataColumns = nullptr,
         const std::unordered_map<String, String>& tableParameters = {})
     : ConnectorTableHandle(connectorId)
     , tableName_(tableName)
@@ -43,6 +44,7 @@ public:
     , subfieldFilters_(std::move(subfieldFilters))
     , remainingFilter_(remainingFilter)
     , dataColumns_(dataColumns)
+    , projectedDataColumns_(projectedDataColumns)
     , tableParameters_(tableParameters) {}
 
     const String & tableName() {
@@ -63,6 +65,10 @@ public:
 
     const RowTypePtr & dataColumns() {
         return dataColumns_;
+    }
+
+    const RowTypePtr & projectedDataColumns() {
+        return projectedDataColumns_;
     }
 
     const std::unordered_map<String, String> & tableParameters() {
@@ -91,6 +97,7 @@ private:
     common::SubfieldFilters subfieldFilters_;
     core::TypedExprPtr remainingFilter_;
     RowTypePtr dataColumns_;
+    RowTypePtr projectedDataColumns_;
     std::unordered_map<String, String> tableParameters_;
 
 };

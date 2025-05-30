@@ -68,16 +68,20 @@ class KafkaDataSource : public DataSource {
   std::unordered_map<std::string, RuntimeCounter> runtimeStats() override;
 
 private:
+  const ConnectorQueryCtx* queryCtx_;
   ConnectionConfigPtr config_;
   RowTypePtr outputType_;
   std::vector<String> topics_; 
-  std::shared_ptr<folly::Executor> executor_;
-  const ConnectorQueryCtx* queryCtx_;
   KafkaConsumerPtr consumer_;
   KafkaRecordDeserializerPtr deserializer_;
-  MessageQueuePtr queue_;
   uint64_t completedRows_ = 0;
   uint64_t completedBytes_ = 0;
+  RowVectorPtr emptyRow_;
+  VectorPtr outRow_;
+  bool processByBatch_;
+  uint64_t consumeBatchSize_;
+  std::vector<cppkafka::Message> queue_;
+  size_t consumePos_ = 0;
 
   /// consumer can be created.
   bool consumerCanbeCreated();
