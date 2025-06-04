@@ -28,6 +28,8 @@ const std::shared_ptr<StreamJSONDeserializer> StreamJSONDeserializer::create(con
         return std::make_shared<StreamHugeIntDeserializer>();
     } else if (kind == TypeKind::VARCHAR) {
         return std::make_shared<StreamStringDeserializer>();
+    } else if (kind == TypeKind::TIMESTAMP) {
+        return std::make_shared<StreamTimestampDeserializer>();
     } else if (kind == TypeKind::ROW) {
         const RowTypePtr rowType = std::dynamic_pointer_cast<const RowType>(type);
         const std::vector<std::string> fieldNames = rowType->names();

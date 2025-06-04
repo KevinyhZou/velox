@@ -49,11 +49,11 @@ public:
         } else if constexpr (std::is_same_v<T, bool>) {
             flat->set(index, e.get_bool().value());
         } else if constexpr (std::is_same_v<T, facebook::velox::StringView>) {
-            const auto & s = e.get_string().value();
+            const auto s = e.get_string().value();
             flat->set(index, StringView(s.data(), s.size()));
         } else if constexpr (std::is_same_v<T, facebook::velox::Timestamp>) {
-            const auto & s = e.get_string().value();
-            const auto timestamp = util::fromTimestampString(s.data(), s.size(), util::TimestampParseMode::kIso8601)
+            const auto s = e.get_string().value();
+            const auto timestamp = util::fromTimestampString(s.data(), s.size(), util::TimestampParseMode::kLegacyCast)
                 .thenOrThrow(folly::identity, [&](const Status& status) {
                     VELOX_FAIL("error while parse timestamp: {}", status.message());
             });
@@ -77,11 +77,11 @@ public:
             } else if constexpr (std::is_same_v<T, bool>) {
                 flat->set(indexes[i], elements[i].get_bool().value());
             } else if constexpr (std::is_same_v<T, facebook::velox::StringView>) {
-                const std::string_view & s = elements[i].get_string().value();
+                const std::string_view s = elements[i].get_string().value();
                 flat->set(indexes[i], StringView(s.data(), s.size()));
             } else if constexpr (std::is_same_v<T, facebook::velox::Timestamp>) {
-                const auto & s = elements[i].get_string().value();
-                const auto timestamp = util::fromTimestampString(s.data(), s.size(), util::TimestampParseMode::kIso8601)
+                const auto s = elements[i].get_string().value();
+                const auto timestamp = util::fromTimestampString(s.data(), s.size(), util::TimestampParseMode::kLegacyCast)
                     .thenOrThrow(folly::identity, [&](const Status& status) {
                         VELOX_FAIL("error while parse timestamp: {}", status.message());
                 });

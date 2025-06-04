@@ -84,7 +84,7 @@ namespace facebook::velox::connector::kafka {
 
     void KafkaDataSource::createRecordDeserializer(const String & format, const RowTypePtr & outputType) {
         if (format == "json") {
-            deserializer_ = std::make_shared<KafkaJSONRecordDeserializer>(outputType, queryCtx_->memoryPool());
+            deserializer_ = std::make_shared<KafkaJSONRecordDeserializer>(outputType, queryCtx_->memoryPool()); 
         } else if (format == "csv") {
             deserializer_ = std::make_shared<KafkaCSVRecordDeserializer>(outputType, queryCtx_->memoryPool());
         } else if (format == "raw") {
@@ -94,6 +94,7 @@ namespace facebook::velox::connector::kafka {
         }
         emptyRow_ = deserializer_->emptyRow();
         outRow_ = deserializer_->emptyRow();
+        outRow_->resize(1);
     }
 
     void KafkaDataSource::addSplit(ConnectorSplitPtr split) {
@@ -105,7 +106,6 @@ namespace facebook::velox::connector::kafka {
     }
 
     std::optional<RowVectorPtr> KafkaDataSource::next(uint64_t, velox::ContinueFuture&) {
-        VELOX_CHECK_NOT_NULL(deserializer_.get(), "Failed to deserialize the message, because the deserializer is null.");
         std::optional<RowVectorPtr> res;
         if (processByBatch_) {
             size_t msgBytes = 0;
@@ -128,7 +128,6 @@ namespace facebook::velox::connector::kafka {
                 res.emplace(emptyRow_);
             } else {
                 outRow_->prepareForReuse();
-                outRow_->resize(1);
                 deserializer_->deserialize(queue_[consumePos_].get_payload(), 0, outRow_);
                 completedRows_ += 1;
                 completedBytes_ += queue_[consumePos_].get_payload().get_size();

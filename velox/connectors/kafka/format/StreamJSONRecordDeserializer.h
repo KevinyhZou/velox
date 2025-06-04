@@ -80,6 +80,21 @@ public:
     }
 };
 
+struct StreamTimestampDeserializer : public StreamJSONDeserializer {
+public:
+    StreamTimestampDeserializer() {}
+    
+    inline const void deserialize(JSONValue & e, const size_t index, VectorPtr & vec) override {
+        auto flat = std::dynamic_pointer_cast<FlatVector<facebook::velox::Timestamp>>(vec);
+        std::string_view s = e.get_string();
+        const auto timestamp = util::fromTimestampString(s.data(), s.size(), util::TimestampParseMode::kLegacyCast)
+                    .thenOrThrow(folly::identity, [&](const Status& status) {
+                        VELOX_FAIL("error while parse timestamp: {}", status.message());
+        });
+        flat->set(index, timestamp);
+    }
+};
+
 struct StreamRowDeserializer : public StreamJSONDeserializer {
 public:
     StreamRowDeserializer(

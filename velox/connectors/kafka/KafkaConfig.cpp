@@ -72,7 +72,7 @@ namespace facebook::velox::connector::kafka {
     }
     
     const bool ConnectionConfig::getEnableBatchProcessData() const {
-        return checkAndGetConfigValue<bool, false>(kProcessDataByBatch, false);
+        return checkAndGetConfigValue<String, false>(kProcessDataByBatch, "false") == "true" ? true : false;
     }
     
     const uint32_t ConnectionConfig::getPollTimeoutMills() const {
