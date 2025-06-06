@@ -93,6 +93,14 @@ class BaseVector {
     return encoding() == VectorEncoding::Simple::LAZY;
   }
 
+  void setCodegenOutput() {
+    isCodegenOutput_ = true;
+  }
+
+  bool isCodegenOutput() {
+    return isCodegenOutput_;
+  }
+  
   /// Returns false if vector has no nulls. Return true if vector may have
   /// nulls.
   virtual bool mayHaveNulls() const {
@@ -999,6 +1007,8 @@ class BaseVector {
       const TypePtr& type,
       vector_size_t size,
       velox::memory::MemoryPool* pool);
+
+  bool isCodegenOutput_ = false;
 
   friend class LazyVector;
 

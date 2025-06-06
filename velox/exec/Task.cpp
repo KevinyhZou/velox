@@ -18,6 +18,7 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <string>
 
+#include "velox/codegen/Codegen.h"
 #include "velox/common/base/Counters.h"
 #include "velox/common/base/StatsReporter.h"
 #include "velox/common/file/FileSystems.h"
@@ -33,6 +34,10 @@
 #include "velox/exec/PlanNodeStats.h"
 #include "velox/exec/Task.h"
 #include "velox/exec/TraceUtil.h"
+#if CODEGEN_ENABLED == 1
+#include "velox/experimental/codegen/CodegenLogger.h"
+#endif
+#include "velox/common/testutil/TestValue.h"
 
 using facebook::velox::common::testutil::TestValue;
 

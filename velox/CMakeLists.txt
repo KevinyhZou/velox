@@ -61,6 +61,7 @@ add_subdirectory(connectors)
 
 if(${VELOX_ENABLE_EXEC})
   add_subdirectory(exec)
+  add_subdirectory(codegen)
   # Disable runner from pyvelox builds
   if(${VELOX_BUILD_RUNNER})
     add_subdirectory(runner)
@@ -69,6 +70,10 @@ endif()
 
 if(${VELOX_ENABLE_DUCKDB})
   add_subdirectory(duckdb)
+endif()
+
+if(${VELOX_ENABLE_CODEGEN_SUPPORT})
+  add_subdirectory(experimental/codegen)
 endif()
 
 if(VELOX_ENABLE_WAVE OR VELOX_ENABLE_CUDF)

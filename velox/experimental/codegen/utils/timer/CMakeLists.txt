@@ -12,20 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# velox_add_library(velox_kafka_config OBJECT KafkaConfig.cpp)
-# velox_link_libraries(velox_kafka_config velox_core velox_exception)
-
-velox_add_library(
-  velox_kafka_connector
-  OBJECT
-  KafkaConfig.cpp
-  KafkaConsumer.cpp
-  KafkaRecordDeserializer.cpp
-  KafkaTableHandle.cpp
-  KafkaDataSource.cpp
-  KafkaConnector.cpp
-  KafkaConnectorSplit.cpp)
-
-add_subdirectory(format)
-
-velox_link_libraries(velox_kafka_connector velox_common_io velox_connector Folly::folly CppKafka::cppkafka simdjson::simdjson)
+velox_add_library(velox_codegen_utils_timer INTERFACE)
+velox_link_libraries(velox_codegen_utils_timer INTERFACE fmt::fmt)
+if(${VELOX_BUILD_TESTING})
+  add_subdirectory(tests)
+endif()

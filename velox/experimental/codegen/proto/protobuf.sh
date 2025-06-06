@@ -1,3 +1,4 @@
+#!/bin/bash
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,20 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# velox_add_library(velox_kafka_config OBJECT KafkaConfig.cpp)
-# velox_link_libraries(velox_kafka_config velox_core velox_exception)
-
-velox_add_library(
-  velox_kafka_connector
-  OBJECT
-  KafkaConfig.cpp
-  KafkaConsumer.cpp
-  KafkaRecordDeserializer.cpp
-  KafkaTableHandle.cpp
-  KafkaDataSource.cpp
-  KafkaConnector.cpp
-  KafkaConnectorSplit.cpp)
-
-add_subdirectory(format)
-
-velox_link_libraries(velox_kafka_connector velox_common_io velox_connector Folly::folly CppKafka::cppkafka simdjson::simdjson)
+"${PROTOC}" "${PROTO_FILE}" "--${LANG}_out=$INSTALL_DIR"
