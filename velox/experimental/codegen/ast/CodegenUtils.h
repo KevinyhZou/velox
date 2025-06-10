@@ -45,6 +45,8 @@ inline std::string codegenFixedWidthNativeType(TypeKind kind) {
       return "float";
     case TypeKind::DOUBLE:
       return "double";
+    case TypeKind::TIMESTAMP:
+      return "facebook::velox::Timestamp";
     default:
       VELOX_UNREACHABLE();
   }
@@ -95,6 +97,7 @@ inline std::string codegenImplTypeName(const velox::Type& type) {
     case TypeKind::REAL:
     case TypeKind::DOUBLE:
     case TypeKind::VARCHAR:
+    case TypeKind::TIMESTAMP:
       return fmt::format("ScalarType<TypeKind::{}>", type.kindName());
     case TypeKind::ROW: {
       std::stringstream ss;

@@ -191,7 +191,12 @@ class ASTNode {
 class InputRefExpr final : public ASTNode {
  public:
   InputRefExpr(const TypePtr& type, const std::string& name, size_t index)
-      : ASTNode(type), name_(name), index_(index) {}
+      : ASTNode(type), name_(name) {
+      indexes_.emplace_back(index);
+  }
+
+  InputRefExpr(const TypePtr& type, const std::string& name, std::vector<size_t> indexes) 
+      : ASTNode(type), name_(name), indexes_(indexes) {}
 
   CodeSnippet generateCode(
       CodegenCtx& exprCodegenCtx,
@@ -216,16 +221,21 @@ class InputRefExpr final : public ASTNode {
 
   void validate() const override {
     validateTyped();
-    // if (index_ < 0) {
-    //   throw ASTValidationException(
-    //       "input reference expression expect a positive index");
-    // }
   }
 
   /// Return the index of referenced column
   size_t index() const {
-    return index_;
+    if (indexes_.size() > 0) {
+      return indexes_[0];
+    } else {
+      VELOX_FAIL("Failed to get index, as the indexes vector is empty.");
+    }
   }
+
+  std::vector<size_t> indexes() const {
+    return indexes_;
+  }
+
   /// Return the column name
   const std::string& name() const {
     return name_;
@@ -235,8 +245,8 @@ class InputRefExpr final : public ASTNode {
   /// Name of the referenced column
   std::string name_;
 
-  // The index of referenced column
-  size_t index_;
+  // The index of referenced columns
+  std::vector<size_t> indexes_;
 };
 
 // An expression that combines the children expressions into a row (tuple)

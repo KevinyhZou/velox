@@ -471,19 +471,14 @@ class CompiledExpressionTransformVisitor {
     for (const auto& includePath : includeSet) {
       includes << fmt::format("#include {}\n", includePath);
     };
-    auto includesArg = fmt::arg("includes", includes.str());
-    auto generateCodeArg = fmt::arg("GeneratedCode", genCode);
-    auto generateCodeClassArg = fmt::arg("GeneratedCodeClass", "FilterExpr");
-    auto defaultNullArg = fmt::arg("isDefaultNull", isDefaultNull(filter.id()) ? "true" : "false");
-    auto defaultNullStrictArg =  fmt::arg("isDefaultNullStrict",isDefaultNullStrict(filter.id()) ? "true" : "false");
-    const std::string fileString = fmt::vformat(
+    const std::string fileString = fmt::format(
         fileFormat(),
-        fmt::make_format_args(
-            includesArg,
-            generateCodeArg,
-            generateCodeClassArg,
-            defaultNullArg,
-            defaultNullStrictArg));
+        fmt::arg("includes", includes.str()),
+        fmt::arg("GeneratedCode", genCode),
+        fmt::arg("GeneratedCodeClass", "FilterExpr"),
+        fmt::arg("isDefaultNull", isDefaultNull(filter.id()) ? "true" : "false"),
+        fmt::arg("isDefaultNullStrict",isDefaultNullStrict(filter.id()) ? "true" : "false")
+    );
     auto compiledObject = codeManager_.compiler().compileString({}, fileString);
     auto dynamicObject = codeManager_.compiler().link({}, {compiledObject});
 
@@ -505,14 +500,13 @@ class CompiledExpressionTransformVisitor {
     std::vector<std::pair<size_t, GeneratedExpressionStruct>> generatedColumns;
 
     std::shared_ptr<const core::PlanNode> source = *ranges::begin(children);
-
     // Check for filter
     std::optional<GeneratedExpressionStruct> filterExpr = std::nullopt;
     auto filterNode = std::dynamic_pointer_cast<const core::FilterNode>(source);
     if (compileFilter_ && mergeFilter_ && filterNode) {
-      if (auto filterCode = getGeneratedCode(filterNode->filter())) {
+      if (auto generatedFilterNode = getGeneratedCode(filterNode->filter())) {
         source = filterNode->sources()[0]; // change source to filter's source
-        filterExpr.emplace(filterCode.value());
+        filterExpr.emplace(generatedFilterNode.value());
       }
     }
 
@@ -571,20 +565,12 @@ class CompiledExpressionTransformVisitor {
       isDefaultNull = this->isDefaultNull(projection.id());
       isDefaultNullStrict = this->isDefaultNullStrict(projection.id());
     }
-
-    auto includesArg = fmt::arg("includes", includes.str());
-    auto generateCodeArg = fmt::arg("GeneratedCode", genCode);
-    auto generateCodeClassArg = fmt::arg("GeneratedCodeClass", "ProjectExpr");
-    auto defaultNullArg = fmt::arg("isDefaultNull", isDefaultNull ? "true" : "false");
-    auto defaultNullStrictArg =  fmt::arg("isDefaultNullStrict",isDefaultNullStrict ? "true" : "false");
-    const std::string fileString = fmt::vformat(
-        fileFormat(),
-        fmt::make_format_args(
-            includesArg,
-            generateCodeArg,
-            generateCodeClassArg,
-            defaultNullArg,
-            defaultNullStrictArg));
+    const std::string fileString = fmt::format(fileFormat(), 
+      fmt::arg("includes", includes.str()),
+      fmt::arg("GeneratedCode", genCode),
+      fmt::arg("GeneratedCodeClass", "ProjectExpr"),
+      fmt::arg("isDefaultNull", isDefaultNull ? "true" : "false"),
+      fmt::arg("isDefaultNullStrict",isDefaultNullStrict ? "true" : "false"));
 
     auto compiledObject = codeManager_.compiler().compileString({}, fileString);
     auto dynamicObject = codeManager_.compiler().link({}, {compiledObject});
@@ -695,6 +681,7 @@ class CodegenCompiledExpressionTransform final : PlanNodeTransform {
 
     auto [treeRoot, nodeMap] =
         transform::utils::isomorphicTreeTransform(plan, nodeTransformer);
+
     return treeRoot;
   }
 

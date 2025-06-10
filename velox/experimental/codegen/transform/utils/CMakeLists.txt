@@ -17,5 +17,5 @@ velox_link_libraries(velox_transform_utils INTERFACE velox_core)
 if(${VELOX_BUILD_TESTING})
   add_subdirectory(tests)
 endif()
-target_compile_definitions(velox_transform_utils INTERFACE ENABLE_CONCEPTS=0
+velox_compile_definitions(velox_transform_utils INTERFACE ENABLE_CONCEPTS=0
                                                            USE_STD_RANGE=0)

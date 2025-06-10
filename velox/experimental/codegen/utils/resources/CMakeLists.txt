@@ -23,11 +23,14 @@ file(
   OUTPUT ./cmake_var_file.txt
   CONTENT "${CMAKE_VARS}")
 
-add_custom_command(
-  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/package.json"
-  DEPENDS generatePackage.py
-  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/generatePackage.py" "--var-file"
-          "${CMAKE_CURRENT_BINARY_DIR}/cmake_var_file.txt")
+# add_custom_command(
+#  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/package.json"
+#  DEPENDS generatePackage.py
+#  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/generatePackageaa.py" "--var-file" "${CMAKE_CURRENT_BINARY_DIR}/cmake_var_file.txt"
+# )
+execute_process(
+  COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/generatePackage.py" "--var-file" "${CMAKE_CURRENT_BINARY_DIR}/cmake_var_file.txt"
+)
 
 set(PACKAGE_JSON
     "${CMAKE_CURRENT_BINARY_DIR}/package.json"

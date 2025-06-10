@@ -50,6 +50,30 @@ __attribute__((noinline)) size_t GeneratedExpressionStruct::uniqueId() {
   return counter++;
 };
 
+bool ExprCodeGenerator::getInputFieldIndex(const RowType & inputRow, const std::string & fieldName, std::vector<size_t> & indexes) {
+  const std::vector<std::string> & inputFieldNames = inputRow.names();
+  for (size_t i = 0; i < inputFieldNames.size(); ++i) {
+    if (fieldName == inputFieldNames[i]) {
+      indexes.emplace_back(i);
+      return true;
+    } else {
+      const std::vector<std::shared_ptr<const Type>> & inputFieldTypes = inputRow.children();
+      for (size_t j = 0; j < inputFieldTypes.size(); ++j) {
+        if (inputFieldTypes[j]->isRow()) {
+          RowTypePtr rowType = std::dynamic_pointer_cast<const RowType>(inputFieldTypes[j]);
+          if (getInputFieldIndex(*rowType, fieldName, indexes)) {
+            indexes.emplace_back(j);
+            return true;
+          } else {
+            continue;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
 // Might throw expression is not supported
 CodegenASTNode ExprCodeGenerator::convertVeloxExpressionToCodegenAST(
     const std::shared_ptr<const core::ITypedExpr>& node,
@@ -60,15 +84,22 @@ CodegenASTNode ExprCodeGenerator::convertVeloxExpressionToCodegenAST(
   // information.
   if (auto inputRefExpr =
           std::dynamic_pointer_cast<const core::FieldAccessTypedExpr>(node)) {
+    std::vector<size_t> indexes;
+    if(!getInputFieldIndex(inputRowType, inputRefExpr->name(), indexes)) {
+      VELOX_FAIL("Field {} not found, ", inputRefExpr->name());
+    } else {
+      std::reverse(indexes.begin(), indexes.end());
+    }
     auto codegenNode = std::make_shared<codegen::InputRefExpr>(
         inputRefExpr->type(),
         inputRefExpr->name(),
-        inputRowType.getChildIdx(inputRefExpr->name()));
+        indexes);
     if (inputRowNullability.size() != 0) {
       /// TODO extract this onto a separate process
       // set nullability of inputRefExpr from inputRowNullability
-      codegenNode->setMaybeNull(inputRowNullability.at(
-          inputRowType.getChildIdx(inputRefExpr->name())));
+      // codegenNode->setMaybeNull(inputRowNullability.at(
+      //    inputRowType.getChildIdx(inputRefExpr->name())));
+      codegenNode->setMaybeNull(true);
     }
     return codegenNode;
   }
@@ -197,7 +228,7 @@ CodegenASTNode ExprCodeGenerator::convertVeloxExpressionToCodegenAST(
             node->type(), codegenInputs.at(0), codegenInputs.at(1));
       }
 
-      if (callExpr->name() == "eq") {
+      if (callExpr->name() == "eq" || callExpr->name() == "equalto") {
         return std::make_shared<codegen::Equal>(
             node->type(), codegenInputs.at(0), codegenInputs.at(1));
       }
@@ -315,7 +346,7 @@ GeneratedExpressionStruct ExprCodeGenerator::codegenExpression(
 
   RowType inputType(std::move(usedColumnName), std::move(usedColumnType));
   RowType outputType({""}, {expressionTree.typePtr()});
-
+  
   return GeneratedExpressionStruct(
       inputType,
       outputType,

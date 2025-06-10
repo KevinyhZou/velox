@@ -59,8 +59,8 @@ class Codegen {
   // NestedScopedTimer.h
   std::shared_ptr<void /*DefaultEventSequence*/> eventSequence_;
 
-  // Follows Velox, defaults to false
-  bool useSymbolsForArithmetic_ = false;
+  // Follows Velox, defaults to true
+  bool useSymbolsForArithmetic_ = true;
 
   bool initializeCodeManager(
       const proto::CompilerOptionsProto& compilerOptionsProto);

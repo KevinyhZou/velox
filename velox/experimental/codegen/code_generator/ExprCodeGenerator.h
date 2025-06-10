@@ -48,10 +48,7 @@ class GeneratedExpressionStruct {
       const std::vector<std::string>& declarations,
       const std::string& invokeFunctionBody,
       const std::string& nameSuffix_ = "")
-      : 
-        // inputRowType_(inputRowTypeArg),
-        // outputRowType_(outputRowTypeArg),
-        headers_(headers),
+      : headers_(headers),
         inputType_(codegenUtils::codegenNativeType(
             inputRowTypeArg,
             codegenUtils::TypePlacement::Input)),
@@ -59,6 +56,18 @@ class GeneratedExpressionStruct {
         inputImplType_(codegenUtils::codegenImplTypeName(inputRowTypeArg)),
         invokeFunctionBody_(invokeFunctionBody),
         declarations_(declarations) {
+    std::vector<std::string> inputRowFieldNames;
+    std::vector<std::shared_ptr<const Type>> inputRowFieldTypes;
+    inputRowFieldNames.insert(inputRowFieldNames.end(), inputRowTypeArg.names().begin(), inputRowTypeArg.names().end());
+    inputRowFieldTypes.insert(inputRowFieldTypes.end(), inputRowTypeArg.children().begin(), inputRowTypeArg.children().end());
+    
+    inputRowType_ = std::make_shared<RowType>(std::move(inputRowFieldNames), std::move(inputRowFieldTypes));
+    std::vector<std::string> outputRowFieldNames;
+    std::vector<std::shared_ptr<const Type>> outputRowFieldTypes;
+    outputRowFieldNames.insert(outputRowFieldNames.end(), outputRowTypeArg.names().begin(), outputRowTypeArg.names().end());
+    outputRowFieldTypes.insert(outputRowFieldTypes.end(), outputRowTypeArg.children().begin(), outputRowTypeArg.children().end());
+    outputRowType_ = std::make_shared<RowType>(std::move(outputRowFieldNames), std::move(outputRowFieldTypes));
+
     expressionName_ =
         fmt::format("generatedExpression_{}_{}", nameSuffix_, uniqueId());
   }
@@ -209,6 +218,8 @@ class ExprCodeGenerator {
 
   // Context used during code generation
   CodegenCtx codeGenCtx_;
+
+  bool getInputFieldIndex(const RowType & inputRow, const std::string & fieldName, std::vector<size_t> & indexes);
 };
 
 } // namespace codegen

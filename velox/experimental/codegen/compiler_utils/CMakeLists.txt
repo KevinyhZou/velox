@@ -13,8 +13,8 @@
 # limitations under the License.
 
 velox_add_library(velox_codegen_compiler_utils INTERFACE)
-add_dependencies(velox_codegen_compiler_utils velox_codegen_external_process
-                 velox_codegen_proto)
+# add_dependencies(velox_codegen_compiler_utils velox_codegen_external_process velox_codegen_proto)
+velox_link_libraries(velox_codegen_compiler_utils velox_codegen_external_process velox_codegen_proto)
 if(${VELOX_BUILD_TESTING})
   add_subdirectory(tests)
 endif()

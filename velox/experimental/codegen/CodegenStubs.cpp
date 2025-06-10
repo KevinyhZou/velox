@@ -23,39 +23,39 @@ namespace facebook {
 namespace velox {
 namespace codegen {
 
-__attribute__((weak)) bool Codegen::initialize(
-    [[maybe_unused]] const std::string_view& codegenOptionsJson,
-    [[maybe_unused]] bool lazyLoading) {
-  throw CodegenStubsException("Codegen::initialize()");
-}
+// __attribute__((weak)) bool Codegen::initialize(
+//     [[maybe_unused]] const std::string_view& codegenOptionsJson,
+//     [[maybe_unused]] bool lazyLoading) {
+//   throw CodegenStubsException("Codegen::initialize()");
+// }
 
-__attribute__((weak)) bool Codegen::initializeFromFile(
-    [[maybe_unused]] const std::filesystem::path& codegenOptionsJsonFile,
-    [[maybe_unused]] bool lazyLoading) {
-  throw CodegenStubsException("Codegen::initializeFromFile()");
-}
+// __attribute__((weak)) bool Codegen::initializeFromFile(
+//     [[maybe_unused]] const std::filesystem::path& codegenOptionsJsonFile,
+//     [[maybe_unused]] bool lazyLoading) {
+//   throw CodegenStubsException("Codegen::initializeFromFile()");
+// }
 
-__attribute__((weak)) std::shared_ptr<const core::PlanNode> Codegen::compile(
-    [[maybe_unused]] const core::PlanNode& planNode) {
-  throw CodegenStubsException("Codegen::compile()");
-}
+// __attribute__((weak)) std::shared_ptr<const core::PlanNode> Codegen::compile(
+//     [[maybe_unused]] const core::PlanNode& planNode) {
+//   throw CodegenStubsException("Codegen::compile()");
+// }
 
-bool Codegen::initializeCodeManager(
-    [[maybe_unused]] const proto::CompilerOptionsProto& compilerOptionsProto) {
-  throw CodegenStubsException("Codegen::initializeCodeManager()");
-}
+// bool Codegen::initializeCodeManager(
+//     [[maybe_unused]] const proto::CompilerOptionsProto& compilerOptionsProto) {
+//   throw CodegenStubsException("Codegen::initializeCodeManager()");
+// }
 
-bool Codegen::initializeUDFManager() {
-  throw CodegenStubsException("Codegen::initializeUDFManager()");
-}
+// bool Codegen::initializeUDFManager() {
+//   throw CodegenStubsException("Codegen::initializeUDFManager()");
+// }
 
-bool Codegen::initializeTransform() {
-  throw CodegenStubsException("Codegen::initializeTransform()");
-}
+// bool Codegen::initializeTransform() {
+//   throw CodegenStubsException("Codegen::initializeTransform()");
+// }
 
-bool Codegen::runInitializationTests() {
-  throw CodegenStubsException("Codegen::runInitializationTests()");
-}
+// bool Codegen::runInitializationTests() {
+//   throw CodegenStubsException("Codegen::runInitializationTests()");
+// }
 
 } // namespace codegen
 } // namespace velox
