@@ -38,6 +38,31 @@ namespace facebook::velox::connector::kafka {
         consumer_->subscribe(topics);
     }
 
+    const cppkafka::TopicPartitionList KafkaConsumer::getTopicPartitions(const String & topic, const String & startupMode) {
+        cppkafka::TopicPartitionList tps;
+        auto metadata = consumer_->get_metadata();
+        const auto & topics = metadata.get_topics();
+        for (const cppkafka::TopicMetadata & topicMetadata : topics) {
+            if (topicMetadata.get_name() == topic) {
+                const auto & partitions = topicMetadata.get_partitions();
+                for (const auto & partition : partitions) {
+                    cppkafka::TopicPartition topicPartition(topic, static_cast<int>(partition.get_id()));
+                    auto offsets = consumer_->query_offsets(topicPartition);
+                    if (startupMode == "earliest-offsets") {
+                        topicPartition.set_offset(std::get<0>(offsets));
+                    } else if (startupMode == "latest-offsets") {
+                        topicPartition.set_offset(std::get<1>(offsets));
+                    }
+                    tps.emplace_back(topicPartition);
+                }
+            }
+        }
+        if (tps.size() == 0) {
+            VELOX_FAIL("Failed to find topic {}", topic);
+        }
+        return tps;
+    }
+
     void KafkaConsumer::assign(const cppkafka::TopicPartitionList & tps) {
         String tpsString = KafkaConnectorSplit::topicPartitonsToString(tps);
         VELOX_CHECK_NOT_NULL(consumer_.get(), "Failed to assign topic partitions: {}, as the cppkafka consumer is null.", tpsString);

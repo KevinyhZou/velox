@@ -102,7 +102,12 @@ namespace facebook::velox::connector::kafka {
         VELOX_CHECK_NOT_NULL(kafkaConnectorSplit, "Failed to add split, because the kafka connector split is null.");
         VELOX_CHECK_NOT_NULL(consumer_.get(), "Failed to add split, because the kafka consumer is null.");
         cppkafka::TopicPartitionList topicPartitions = kafkaConnectorSplit->getCppKafkaTopicPartitions();
-        consumer_->assign(topicPartitions);
+        if (topicPartitions.size() == 0) {
+            const auto tps = consumer_->getTopicPartitions(topics_[0], config_->getStartupMode());
+            consumer_->assign(tps);
+        } else {
+            consumer_->assign(topicPartitions);
+        }
     }
 
     std::optional<RowVectorPtr> KafkaDataSource::next(uint64_t, velox::ContinueFuture&) {

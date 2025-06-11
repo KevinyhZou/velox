@@ -42,6 +42,8 @@ public:
         running_ = false;
     }
 
+    const cppkafka::TopicPartitionList getTopicPartitions(const String & topic, const String & startupMode);
+
     void subscribe(const std::vector<String> & topics);
 
     void assign(const cppkafka::TopicPartitionList & tps);
