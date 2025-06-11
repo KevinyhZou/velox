@@ -18,6 +18,7 @@
 
 namespace facebook::velox::codegen {
 std::string ResourcePath::getResourcePath() {
-  return std::string(PACKAGE_JSON);
+  // return std::string(PACKAGE_JSON);
+  return "";
 }
 } // namespace facebook::velox::codegen
