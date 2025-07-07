@@ -1,0 +1,49 @@
+/*
+ * Copyright (c) Facebook, Inc. and its affiliates.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "velox/connectors/filesystem/FileSystemConfig.h"
+
+namespace facebook::velox::connector::filesystem {
+
+template <typename T, bool throwException>
+const T FileSystemWriteConfig::checkAndGetConfigValue(
+    const std::string& configKey,
+    T defaultValue) const {
+  std::optional<T> configValue =
+      static_cast<std::optional<T>>(config_->get<T>(configKey));
+  if constexpr (throwException) {
+    VELOX_CHECK_EQ(
+        configValue.has_value(),
+        true,
+        "Kafka config {} has no specified value.",
+        configKey);
+  }
+  if (configValue.has_value()) {
+    return configValue.value();
+  } else {
+    return defaultValue;
+  }
+}
+
+const std::string FileSystemWriteConfig::getFormat() {
+    return checkAndGetConfigValue<std::string, false>(kFormat, "");
+}
+
+const std::string FileSystemWriteConfig::getPath() {
+    return checkAndGetConfigValue<std::string, false>(kPath, "");
+}
+
+}
