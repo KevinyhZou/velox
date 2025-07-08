@@ -225,6 +225,8 @@ class DataSink {
 
   /// Returns the stats of this data sink.
   virtual Stats stats() const = 0;
+
+  virtual void commit(int64_t id) {}
 };
 
 class DataSource {

@@ -112,6 +112,12 @@ class TableWriter : public Operator {
 
   void noMoreInput() override;
 
+  void commit(int64_t id) override {
+    if (dataSink_) {
+      dataSink_->commit(id);
+    }
+  }
+
   virtual bool needsInput() const override {
     return true;
   }

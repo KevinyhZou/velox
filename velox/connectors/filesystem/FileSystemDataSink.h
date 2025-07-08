@@ -180,7 +180,7 @@ public:
 
     connector::DataSink::Stats stats() const override;
 
-    void commit(int64_t id);
+    void commit(int64_t id) override;
    
 private:
     const RowTypePtr inputType_;
