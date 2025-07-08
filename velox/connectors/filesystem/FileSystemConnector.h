@@ -16,14 +16,9 @@
 #pragma once
 
 #include "velox/connectors/Connector.h"
-#include "velox/connectors/filesystem/FileSystemConfig.h"
 #include "velox/connectors/filesystem/FileSystemDataSink.h"
 
 namespace facebook::velox::connector::filesystem {
-
-using ConnectorHandlePtr = std::shared_ptr<connector::ConnectorTableHandle>;
-using ConnectorInsertTableHandlePtr =
-    std::shared_ptr<ConnectorInsertTableHandle>;
 
 class FileSystemConnector : public Connector {
 public:
@@ -31,34 +26,34 @@ public:
         const std::string& id,
         std::shared_ptr<const config::ConfigBase> config,
         folly::Executor* /* executor **/
-    ) : Connector(id), config_(config) {}
+    ) : Connector(id) {}
 
     std::unique_ptr<DataSource> createDataSource(
         const RowTypePtr& outputType,
-        const ConnectorHandlePtr& tableHandle,
+        const std::shared_ptr<connector::ConnectorTableHandle>& tableHandle,
         const std::unordered_map<std::string, std::shared_ptr<ColumnHandle>>& columnHandles,
         ConnectorQueryCtx* connectorQueryCtx) override;
 
     std::unique_ptr<DataSink> createDataSink(
         RowTypePtr inputType,
-        ConnectorInsertTableHandlePtr connectorInsertTableHandle,
+        std::shared_ptr<ConnectorInsertTableHandle> connectorInsertTableHandle,
         ConnectorQueryCtx* connectorQueryCtx,
         CommitStrategy commitStrategy) override;
 
-    // bool canAddDynamicFilter() const override {
-    //     return false;
-    // }
+    bool canAddDynamicFilter() const override {
+        return false;
+    }
 
-//   ConnectorMetadata* metadata() const override {
-//     VELOX_NYI();
-//   }
+  ConnectorMetadata* metadata() const override {
+    VELOX_NYI();
+  }
 
-//   bool supportsSplitPreload() override {
-//     return false;
-//   }
+  bool supportsSplitPreload() override {
+    return false;
+  }
 
-// private:
-//   std::shared_ptr<const config::ConfigBase> config_;
+private:
+  std::shared_ptr<const config::ConfigBase> config_;
 };
 
 }

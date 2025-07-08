@@ -26,6 +26,10 @@ if(${VELOX_ENABLE_KAFKA_CONNECTOR})
   add_subdirectory(kafka)
 endif()
 
+if(${VELOX_ENABLE_FILESYSTEM_CONNECTOR})
+  add_subdirectory(filesystem)
+endif()
+
 if(${VELOX_ENABLE_TPCH_CONNECTOR})
   add_subdirectory(tpch)
 endif()

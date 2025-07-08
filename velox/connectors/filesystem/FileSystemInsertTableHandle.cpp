@@ -21,9 +21,13 @@ namespace facebook::velox::connector::filesystem {
 FileSystemInsertTableHandle::FileSystemInsertTableHandle(
     std::string tableName,
     const RowTypePtr& dataColumns,
+    const std::vector<uint32_t>& partitionIndexes,
+    const std::vector<std::string>& partitionKeys,
     const std::unordered_map<std::string, std::string>& tableParameters)
   : tableName_(tableName),
   dataColumns_(dataColumns),
+  partitionIndexes_(partitionIndexes),
+  partitionKeys_(partitionKeys),
   tableParameters_(tableParameters) {}
 
 std::string FileSystemInsertTableHandle::toString() const {
@@ -31,6 +35,18 @@ std::string FileSystemInsertTableHandle::toString() const {
   out << "table: " << tableName_;
   if (dataColumns_) {
     out << ", data columns: " << dataColumns_->toString();
+  }
+  if (!partitionIndexes_.empty()) {
+    out << ", partition indexes: ";
+    for (const auto & pIndex : partitionIndexes_) {
+      out << pIndex << " ";
+    }
+  }
+  if (!partitionKeys_.empty()) {
+    out << ", partition keys: ";
+    for (const auto & pKey : partitionKeys_) {
+      out << pKey << " ";
+    }
   }
   if (!tableParameters_.empty()) {
     std::map<std::string, std::string> orderedTableParameters{
@@ -55,6 +71,16 @@ folly::dynamic FileSystemInsertTableHandle::serialize() const {
   if (dataColumns_) {
     obj["dataColumns"] = dataColumns_->serialize();
   }
+  folly::dynamic partitionIndexArray = folly::dynamic::array;
+  for (const auto& pIndex : partitionIndexes_) {
+    partitionIndexArray.push_back(pIndex);
+  }
+  obj["partitionIndexes"] = partitionIndexArray;
+  folly::dynamic partitionKeyArray = folly::dynamic::array;
+  for (const auto& pKey : partitionKeys_) {
+    partitionKeyArray.push_back(pKey);
+  }
+  obj["partitionKeys"] = partitionKeyArray;
   folly::dynamic tableParameters = folly::dynamic::object;
   for (const auto& param : tableParameters_) {
     tableParameters[param.first] = param.second;
@@ -69,6 +95,20 @@ ConnectorInsertTableHandlePtr FileSystemInsertTableHandle::create(const folly::d
     if (auto it = obj.find("dataColumns"); it != obj.items().end()) {
         dataColumns = ISerializable::deserialize<RowType>(it->second, context);
     }
+    std::vector<std::string> partitionKeys;
+    if (auto it = obj.find("partitionKeys"); it != obj.items().end()) {
+      const auto& partitionKeysArray = obj["partitionKeys"];
+      for (const auto& item : partitionKeysArray) {
+        partitionKeys.emplace_back(item.asString());
+      }
+    }
+    std::vector<uint32_t> partitionIndexes;
+    if (auto it = obj.find("partitionIndexes"); it != obj.items().end()) {
+      const auto& partitionIndexArray = obj["partitionIndexes"];
+      for (const auto& item : partitionIndexArray) {
+        partitionIndexes.emplace_back(item.asInt());
+      }
+    }
     std::unordered_map<std::string, std::string> tableParameters{};
     const auto& tableParametersObj = obj["tableParameters"];
     for (const auto& key : tableParametersObj.keys()) {
@@ -78,6 +118,8 @@ ConnectorInsertTableHandlePtr FileSystemInsertTableHandle::create(const folly::d
     return std::make_shared<const FileSystemInsertTableHandle>(
         tableName,
         dataColumns,
+        partitionIndexes,
+        partitionKeys,
         tableParameters);
 }
 

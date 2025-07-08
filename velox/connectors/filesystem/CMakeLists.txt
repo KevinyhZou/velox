@@ -24,6 +24,6 @@ velox_add_library(
   FileSystemDataSink.cpp)
 
 velox_link_libraries(
-  velox_kafka_connector
+  velox_filesystem_connector
   velox_common_io
   velox_connector)

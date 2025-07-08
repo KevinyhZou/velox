@@ -28,11 +28,47 @@ public:
   static constexpr const char* kPath = "path";
   /// The config key fo format
   static constexpr const char* kFormat = "format";
+  static constexpr const char* kFileRollingInterval = "sink.rolling-policy.rollover-interval";
+  static constexpr const char* kFileNamePrefix = "";
+  static constexpr const char* kFileNameSuffix = "";
+  static constexpr const char* kTaskId = "";
+  static constexpr const char* kPartitionCommitTrigger = "sink.partition-commit.trigger";
+  static constexpr const char* kPartitionCommitPolicy = "sink.partition-commit.policy.kind";
+  static constexpr const char* kPartitionCommitDelay = "sink.partition-commit.delay";
+  static constexpr const char* kPartitionTimeExtractPattern = "partition.time-extractor.timestamp-pattern";
+  /// The default value of max partitions per writer.
+  static constexpr const int32_t defaultMaxPartitionsPerWriter = 65535;
 
   const std::string getPath();
   const std::string getFormat();
+  const bool allowNullPartitionKeys() { return false; }
+  const int32_t maxPartitionsPerWriter() { return defaultMaxPartitionsPerWriter; }
+  const bool isPartitionPathAsLowerCase() { return true; }
+  const std::string getFileNamePrefix();
+  const std::string getFileNameSuffix();
+  const int32_t getFileRollingIntervalMinutes();
+  const std::string getTaskId();
+  const std::string getPartitionCommitTrigger();
+  const std::string getPartitionCommitPolicy();
+  const int32_t getPartitionCommitDelayMinutes();
+  const std::string getPartitionTimeExtractPattern();
+  const bool flushOnWrite() { return true; }
   const bool exists(const std::string& configKey) {
     return config_ && config_->valueExists(configKey);
+  }
+
+  const ConfigPtr& config() {
+    return config_;
+  }
+
+  template <typename T>
+  const std::shared_ptr<T> setConfigs(
+      const std::unordered_map<std::string, std::string>& configs) const {
+    std::unordered_map<std::string, std::string> rawConfigs = config_->rawConfigsCopy();
+    rawConfigs.insert(configs.begin(), configs.end());
+    ConfigPtr newConfig =
+        std::make_shared<const config::ConfigBase>(std::move(rawConfigs));
+    return std::make_shared<T>(newConfig);
   }
 
 private:

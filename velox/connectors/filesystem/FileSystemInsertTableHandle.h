@@ -18,6 +18,7 @@
 #include "velox/connectors/Connector.h"
 #include "velox/type/Type.h"
 #include "folly/dynamic.h"
+#include <algorithm>
 
 namespace facebook::velox::connector::filesystem {
 
@@ -27,10 +28,12 @@ class FileSystemInsertTableHandle : public ConnectorInsertTableHandle {
 public:
  FileSystemInsertTableHandle(
     std::string tableName,
-    const RowTypePtr& dataColumns = nullptr,
-    const std::unordered_map<std::string, std::string>& tableParameters = {});
+    const RowTypePtr& dataColumns,
+    const std::vector<uint32_t>& partitionIndexes = {},
+    const std::vector<std::string>& partitionKeys = {},
+    const std::unordered_map<std::string, std::string>& tableParameters = {}) ;
 
-  const RowTypePtr& dataColumns() {
+  const RowTypePtr& dataColumns() const {
     return dataColumns_;
   }
 
@@ -40,6 +43,14 @@ public:
 
   const std::string& tableName() {
     return tableName_;
+  }
+
+  const std::vector<uint32_t> parititonIndexes() {
+    return partitionIndexes_;
+  }
+
+  const std::vector<std::string> partitionKeys() {
+    return partitionKeys_;
   }
 
   std::string toString() const override;
@@ -54,6 +65,8 @@ public:
 private:
     std::string tableName_;
     const RowTypePtr dataColumns_;
+    const std::vector<uint32_t> partitionIndexes_;
+    const std::vector<std::string> partitionKeys_;
     const std::unordered_map<std::string, std::string> tableParameters_;
 };
 }

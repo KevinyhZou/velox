@@ -39,11 +39,47 @@ const T FileSystemWriteConfig::checkAndGetConfigValue(
 }
 
 const std::string FileSystemWriteConfig::getFormat() {
-    return checkAndGetConfigValue<std::string, false>(kFormat, "");
+  return checkAndGetConfigValue<std::string, false>(kFormat, "");
 }
 
 const std::string FileSystemWriteConfig::getPath() {
-    return checkAndGetConfigValue<std::string, false>(kPath, "");
+  return checkAndGetConfigValue<std::string, false>(kPath, "");
+}
+
+const int32_t FileSystemWriteConfig::getFileRollingIntervalMinutes() {
+  const std::string configVal = checkAndGetConfigValue<std::string, false>(kFileRollingInterval, "1min");
+  const std::string intVal = configVal.substr(0, configVal.size() - 3);
+  return std::stoi(intVal);
+}
+
+const std::string FileSystemWriteConfig::getFileNamePrefix() {
+  return checkAndGetConfigValue<std::string, false>(kFileNamePrefix, "");
+}
+
+const std::string FileSystemWriteConfig::getFileNameSuffix() {
+  return checkAndGetConfigValue<std::string, false>(kFileNameSuffix, "");
+}
+
+const std::string FileSystemWriteConfig::getTaskId() {
+  return checkAndGetConfigValue<std::string, false>(kTaskId, "0");
+}
+
+const std::string FileSystemWriteConfig::getPartitionCommitTrigger() {
+  return checkAndGetConfigValue<std::string, false>(kPartitionCommitTrigger, "process-time");
+}
+
+const std::string FileSystemWriteConfig::getPartitionCommitPolicy() {
+  return checkAndGetConfigValue<std::string, false>(kPartitionCommitPolicy, "success-file");
+}
+
+const int32_t FileSystemWriteConfig::getPartitionCommitDelayMinutes() {
+  const std::string configVal = checkAndGetConfigValue<std::string, false>(kPartitionCommitDelay, "1min");
+  const std::string intVal = configVal.substr(0, configVal.size() - 3);
+  return std::stoi(intVal);
+}
+
+const std::string FileSystemWriteConfig::getPartitionTimeExtractPattern() {
+  return checkAndGetConfigValue<std::string, false>(kPartitionTimeExtractPattern, "");
 }
 
 }
