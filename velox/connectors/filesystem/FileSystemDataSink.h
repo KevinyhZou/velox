@@ -129,6 +129,15 @@ private:
       const std::vector<std::string>& partitionKeys
     ) {
       std::unordered_map<std::string, std::string> keysMapping;
+      const std::vector<std::string> & inputColumnNames = inputType->names();
+      std::vector<std::string> inputKeys;
+      for (size_t i = 0; i < partitionChannels.size(); ++i) {
+        inputKeys.emplace_back(inputColumnNames[partitionChannels[i]]);
+      }
+      VELOX_CHECK(inputKeys.size() == partitionKeys.size());
+      for (size_t i = 0; i < inputKeys.size(); ++i) {
+        keysMapping[inputKeys[i]] = partitionKeys[i];
+      }
       return keysMapping;
     }
 };

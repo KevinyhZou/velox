@@ -110,7 +110,7 @@ FileSystemDataSink::FileSystemDataSink(
 const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
     const std::string& writePath,
     const std::shared_ptr<FsWriterInfo>& writerInfo) {
-  auto options = writerFactory_->createWriterOptions();
+  std::shared_ptr<dwio::common::WriterOptions> options = writerFactory_->createWriterOptions();
   const auto* connectorSessionProperties = queryCtx_->sessionProperties();
   // Only overwrite options in case they were not already provided.
   if (options->schema == nullptr) {
@@ -145,8 +145,7 @@ const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
               .pool = writerInfo_.back()->sinkPool.get(),
               .metricLogger = dwio::common::MetricsLog::voidLog(),
               .stats = ioStats_.back().get(),
-          }),
-      std::make_shared<dwio::common::WriterOptions>(*options));
+          }), options);
 }
 
 const std::pair<std::string, std::string> FileSystemDataSink::getWriterFileNames() const {
@@ -588,8 +587,8 @@ const std::pair<std::string, std::string> FsFileNameGenerator::gen() const {
   boost::uuids::uuid uuid  = generator();
   writeFileName << "." << targetFileName.str() << "-"
     << to_string(uuid);
-  fileNames.first = writeFileName.str();
-  fileNames.second = targetFileName.str();
+  fileNames.first = targetFileName.str();
+  fileNames.second = writeFileName.str();
   partCounter_ ++;
   return fileNames;
 }

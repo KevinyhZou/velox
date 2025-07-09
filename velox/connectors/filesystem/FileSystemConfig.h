@@ -29,9 +29,9 @@ public:
   /// The config key fo format
   static constexpr const char* kFormat = "format";
   static constexpr const char* kFileRollingInterval = "sink.rolling-policy.rollover-interval";
-  static constexpr const char* kFileNamePrefix = "";
-  static constexpr const char* kFileNameSuffix = "";
-  static constexpr const char* kTaskId = "";
+  static constexpr const char* kFileNamePrefix = "fs.file_name_prefix";
+  static constexpr const char* kFileNameSuffix = "fs.file_name_suffix";
+  static constexpr const char* kTaskId = "fs.writer_task_id";
   static constexpr const char* kPartitionCommitTrigger = "sink.partition-commit.trigger";
   static constexpr const char* kPartitionCommitPolicy = "sink.partition-commit.policy.kind";
   static constexpr const char* kPartitionCommitDelay = "sink.partition-commit.delay";

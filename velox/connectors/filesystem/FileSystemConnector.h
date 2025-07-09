@@ -26,7 +26,7 @@ public:
         const std::string& id,
         std::shared_ptr<const config::ConfigBase> config,
         folly::Executor* /* executor **/
-    ) : Connector(id) {}
+    ) : Connector(id), config_(config) {}
 
     std::unique_ptr<DataSource> createDataSource(
         const RowTypePtr& outputType,
