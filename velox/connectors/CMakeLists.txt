@@ -22,10 +22,6 @@ if(${VELOX_ENABLE_HIVE_CONNECTOR})
   add_subdirectory(hive)
 endif()
 
-if(${VELOX_ENABLE_KAFKA_CONNECTOR})
-  add_subdirectory(kafka)
-endif()
-
 if(${VELOX_ENABLE_FILESYSTEM_CONNECTOR})
   add_subdirectory(filesystem)
 endif()
