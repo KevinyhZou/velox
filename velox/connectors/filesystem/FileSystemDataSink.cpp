@@ -21,7 +21,6 @@
 #include "velox/exec/OperatorUtils.h"
 #include "velox/type/TimestampConversion.h"
 
-#include "boost/algorithm/string.hpp"
 #include "boost/uuid/uuid.hpp"
 #include "boost/uuid/uuid_generators.hpp"
 #include "boost/uuid/uuid_io.hpp"
@@ -135,14 +134,13 @@ const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
   options->adjustTimestampToTimezone = queryCtx_->adjustTimestampToTimezone();
   options->processConfigs(*writeConfig_->config(), *connectorSessionProperties);
   // Prevents the memory allocation during the writer creation.
-  WRITER_NON_RECLAIMABLE_SECTION_GUARD(writerInfo_.size() - 1);
   return writerFactory_->createWriter(
       dwio::common::FileSink::create(
           writePath,
           {
               .bufferWrite = false,
               // .fileCreateConfig = writeConfig_->config(),
-              .pool = writerInfo_.back()->sinkPool.get(),
+              .pool = writerInfo->sinkPool.get(),
               .metricLogger = dwio::common::MetricsLog::voidLog(),
               .stats = ioStats_.back().get(),
           }), options);
@@ -290,7 +288,11 @@ void FileSystemDataSink::write(size_t index, RowVectorPtr input) {
   if (writeConfig_->flushOnWrite()) {
     writers_[index]->flush();
   }
-  writerInfo_[index]->inputSizeInBytes += dataInput->estimateFlatSize();
+  if (writeConfig_->getFileCompressionType() == "None") {
+    writerInfo_[index]->inputSizeInBytes += dataInput->inMemoryBytes();
+  } else {
+    writerInfo_[index]->inputSizeInBytes += dataInput->estimateFlatSize();
+  }
   writerInfo_[index]->numWrittenRows += dataInput->size();
 }
 
@@ -585,8 +587,7 @@ const std::pair<std::string, std::string> FsFileNameGenerator::gen() const {
     << partCounter_ << suffix_;
   boost::uuids::random_generator generator;
   boost::uuids::uuid uuid  = generator();
-  writeFileName << "." << targetFileName.str() << "-"
-    << to_string(uuid);
+  writeFileName << "." << targetFileName.str() << ".inprogress." << to_string(uuid);
   fileNames.first = targetFileName.str();
   fileNames.second = writeFileName.str();
   partCounter_ ++;

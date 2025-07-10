@@ -82,4 +82,10 @@ const std::string FileSystemWriteConfig::getPartitionTimeExtractPattern() {
   return checkAndGetConfigValue<std::string, false>(kPartitionTimeExtractPattern, "");
 }
 
+const int32_t FileSystemWriteConfig::getFileRollingSize() {
+  const std::string configVal = checkAndGetConfigValue<std::string, false>(kFileRollingSize, "128MB");
+  const std::string intVal = configVal.substr(0, configVal.size() - 2);
+  return std::stoi(intVal) * 1024 * 1024;
+}
+
 }

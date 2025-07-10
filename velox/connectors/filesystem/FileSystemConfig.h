@@ -29,6 +29,7 @@ public:
   /// The config key fo format
   static constexpr const char* kFormat = "format";
   static constexpr const char* kFileRollingInterval = "sink.rolling-policy.rollover-interval";
+  static constexpr const char* kFileRollingSize = "sink.rolling-policy.file-size";
   static constexpr const char* kFileNamePrefix = "fs.file_name_prefix";
   static constexpr const char* kFileNameSuffix = "fs.file_name_suffix";
   static constexpr const char* kTaskId = "fs.writer_task_id";
@@ -47,11 +48,13 @@ public:
   const std::string getFileNamePrefix();
   const std::string getFileNameSuffix();
   const int32_t getFileRollingIntervalMinutes();
+  const int32_t getFileRollingSize();
   const std::string getTaskId();
   const std::string getPartitionCommitTrigger();
   const std::string getPartitionCommitPolicy();
   const int32_t getPartitionCommitDelayMinutes();
   const std::string getPartitionTimeExtractPattern();
+  const std::string getFileCompressionType() { return "None"; }
   const bool flushOnWrite() { return true; }
   const bool exists(const std::string& configKey) {
     return config_ && config_->valueExists(configKey);

@@ -23,9 +23,9 @@
 #include "velox/connectors/hive/HiveDataSink.h"
 #include "velox/connectors/hive/PartitionIdGenerator.h"
 
-
-#include "boost/algorithm/string/replace.hpp"
+#include "boost/algorithm/string.hpp"
 #include "folly/container/F14Map.h"
+#include <iostream>
 
 namespace facebook::velox::connector::filesystem {
 
@@ -65,6 +65,8 @@ public:
     
     bool shouldUpdateWriter(const FileSystemWriteConfigPtr& writeConfig_) {
       if (std::time(nullptr) - createTime_ > writeConfig_->getFileRollingIntervalMinutes() * 60) {
+        return true;
+      } else if (inputSizeInBytes  > writeConfig_->getFileRollingSize()) {
         return true;
       }
       return false;
@@ -110,36 +112,33 @@ public:
     memory::MemoryPool* pool,
     bool partitionPathAsLowerCase)
     : hive::PartitionIdGenerator(inputType, partitionChannels, maxPartitions, pool, partitionPathAsLowerCase),
-    partitionKeysMapping_(makePartitionKeysMapping(inputType, partitionChannels, partitionKeys)) {}
+    partitionKeys_(partitionKeys) {}
 
   const std::string fsPartitionName(const uint32_t& partitionId) const {
     std::string partitionName = hive::PartitionIdGenerator::partitionName(partitionId);
-    for (const auto &[first, second] : partitionKeysMapping_) {
-      boost::algorithm::replace_all(partitionName, first + "=", second + "=");
+    std::vector<std::string> partitionNames;
+    boost::algorithm::split(partitionNames, partitionName, boost::algorithm::is_any_of("/"));
+    VELOX_CHECK(partitionNames.size() == partitionKeys_.size());
+    std::vector<std::pair<std::string, std::string>> partitionKVs;
+    for (size_t i = 0; i < partitionNames.size(); ++i) {
+      std::vector<std::string> partitionKV;
+      boost::algorithm::split(partitionKV, partitionNames[i], boost::algorithm::is_any_of("="));
+      VELOX_CHECK(partitionKV.size() == 2);
+      std::pair<std::string, std::string> kv;
+      kv.first = partitionKeys_[i];
+      kv.second = partitionKV[1];
+      partitionKVs.emplace_back(kv);
     }
-    return partitionName;
+    std::stringstream ss;
+    for (const auto& [k, v] : partitionKVs) {
+      ss << k << "=" << v << "/" ;
+    }
+    std::string result = ss.str();
+    return result.substr(0, result.size() - 1);
   }
 
 private:
-    const std::unordered_map<std::string, std::string> partitionKeysMapping_;
-
-    const std::unordered_map<std::string, std::string> makePartitionKeysMapping(
-      const RowTypePtr& inputType,
-      const std::vector<column_index_t>& partitionChannels,
-      const std::vector<std::string>& partitionKeys
-    ) {
-      std::unordered_map<std::string, std::string> keysMapping;
-      const std::vector<std::string> & inputColumnNames = inputType->names();
-      std::vector<std::string> inputKeys;
-      for (size_t i = 0; i < partitionChannels.size(); ++i) {
-        inputKeys.emplace_back(inputColumnNames[partitionChannels[i]]);
-      }
-      VELOX_CHECK(inputKeys.size() == partitionKeys.size());
-      for (size_t i = 0; i < inputKeys.size(); ++i) {
-        keysMapping[inputKeys[i]] = partitionKeys[i];
-      }
-      return keysMapping;
-    }
+    const std::vector<std::string> partitionKeys_;
 };
 
 class FileSystemDataSink : public DataSink {
