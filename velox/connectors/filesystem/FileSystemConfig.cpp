@@ -84,8 +84,25 @@ const std::string FileSystemWriteConfig::getPartitionTimeExtractPattern() {
 
 const int32_t FileSystemWriteConfig::getFileRollingSize() {
   const std::string configVal = checkAndGetConfigValue<std::string, false>(kFileRollingSize, "128MB");
-  const std::string intVal = configVal.substr(0, configVal.size() - 2);
-  return std::stoi(intVal) * 1024 * 1024;
+  const std::string sizeUnit = configVal.substr(configVal.size() - 2, configVal.size());
+  std::string intVal = configVal.substr(0, configVal.size() - 2);
+  if (sizeUnit == "GB") {
+    return std::stoi(intVal) * 1024 * 1024 * 1024;
+  } else if (sizeUnit == "MB") {
+    return std::stoi(intVal) * 1024 * 1024;
+  } else if (sizeUnit == "KB") {
+    return std::stoi(intVal) * 1024;
+  } else {
+    const std::string byteUnit = configVal.substr(configVal.size() - 1, configVal.size());
+    if (byteUnit == "B"
+      && ((sizeUnit.at(0) >= '0' && sizeUnit.at(0) <= '9')
+      || sizeUnit.at(0) == ' ')) {
+      intVal = configVal.substr(0, configVal.size() - 1);
+      return std::stoi(intVal);
+    } else {
+      VELOX_UNSUPPORTED("The unit for config {} only support GB/MB/KB/B", kFileRollingSize);
+    }
+  }
 }
 
 }

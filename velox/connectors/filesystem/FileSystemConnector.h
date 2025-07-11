@@ -22,27 +22,31 @@ namespace facebook::velox::connector::filesystem {
 
 class FileSystemConnector : public Connector {
 public:
-    FileSystemConnector(
-        const std::string& id,
-        std::shared_ptr<const config::ConfigBase> config,
-        folly::Executor* /* executor **/
-    ) : Connector(id), config_(config) {}
+  FileSystemConnector(
+      const std::string& id,
+      std::shared_ptr<const config::ConfigBase> config,
+      folly::Executor* /* executor **/
+  ) : Connector(id), config_(config) {}
 
-    std::unique_ptr<DataSource> createDataSource(
-        const RowTypePtr& outputType,
-        const std::shared_ptr<connector::ConnectorTableHandle>& tableHandle,
-        const std::unordered_map<std::string, std::shared_ptr<ColumnHandle>>& columnHandles,
-        ConnectorQueryCtx* connectorQueryCtx) override;
+  std::unique_ptr<DataSource> createDataSource(
+      const RowTypePtr& outputType,
+      const std::shared_ptr<connector::ConnectorTableHandle>& tableHandle,
+      const std::unordered_map<std::string, std::shared_ptr<ColumnHandle>>& columnHandles,
+      ConnectorQueryCtx* connectorQueryCtx) override;
 
-    std::unique_ptr<DataSink> createDataSink(
-        RowTypePtr inputType,
-        std::shared_ptr<ConnectorInsertTableHandle> connectorInsertTableHandle,
-        ConnectorQueryCtx* connectorQueryCtx,
-        CommitStrategy commitStrategy) override;
+  std::unique_ptr<DataSink> createDataSink(
+      RowTypePtr inputType,
+      std::shared_ptr<ConnectorInsertTableHandle> connectorInsertTableHandle,
+      ConnectorQueryCtx* connectorQueryCtx,
+      CommitStrategy commitStrategy) override;
 
-    bool canAddDynamicFilter() const override {
-        return false;
-    }
+  bool canAddDynamicFilter() const override {
+      return false;
+  }
+
+  const std::shared_ptr<const config::ConfigBase>& connectorConfig() const override {
+    return config_;
+  }
 
   ConnectorMetadata* metadata() const override {
     VELOX_NYI();
@@ -54,6 +58,24 @@ public:
 
 private:
   std::shared_ptr<const config::ConfigBase> config_;
+};
+
+class FileSystemConnectorFactory : public ConnectorFactory {
+ public:
+  static constexpr const char* kFileSystemConnectorName{"FileSystem"};
+
+  FileSystemConnectorFactory() : ConnectorFactory(kFileSystemConnectorName) {}
+
+  explicit FileSystemConnectorFactory(const char* connectorName)
+      : ConnectorFactory(connectorName) {}
+
+  std::shared_ptr<Connector> newConnector(
+      const std::string& id,
+      std::shared_ptr<const config::ConfigBase> config,
+      folly::Executor* ioExecutor = nullptr,
+      folly::Executor* cpuExecutor = nullptr) override {
+    return std::make_shared<FileSystemConnector>(id, config, ioExecutor);
+  }
 };
 
 }

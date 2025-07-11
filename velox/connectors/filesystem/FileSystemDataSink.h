@@ -189,7 +189,22 @@ public:
     connector::DataSink::Stats stats() const override;
 
     void commit(int64_t id) override;
-   
+
+    // For test.
+    const std::vector<std::shared_ptr<FsWriterInfo>>& getWriteInfos() {
+      return writerInfo_;
+    }
+
+    // For test.
+    const size_t getPartitionNums() {
+      return partitionIdGenerator_->numPartitions();
+    }
+
+    // For test
+    const size_t getPendingWriterInfosSize() {
+      return pendingWriterInfo_.size();
+    }
+
 private:
     const RowTypePtr inputType_;
     const std::shared_ptr<FileSystemInsertTableHandle> insertTableHandle_;
@@ -238,7 +253,10 @@ private:
     // ensures that there is a writer created for each (bucketed) partition.
     void splitInputRowsAndEnsureWriters();
 
-    const std::unique_ptr<dwio::common::Writer> createWriter(const std::string& writePath, const std::shared_ptr<FsWriterInfo>& writeInfo);
+    const std::unique_ptr<dwio::common::Writer> createWriter(
+      const std::string& writePath,
+      const std::shared_ptr<FsWriterInfo>& writeInfo,
+      const std::shared_ptr<io::IoStatistics>& ioStats);
 
     // Appends a new writer for the given 'id'. The function returns the index of
     // the newly created writer in 'writers_'.

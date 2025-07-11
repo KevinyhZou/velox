@@ -108,7 +108,8 @@ FileSystemDataSink::FileSystemDataSink(
 
 const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
     const std::string& writePath,
-    const std::shared_ptr<FsWriterInfo>& writerInfo) {
+    const std::shared_ptr<FsWriterInfo>& writerInfo,
+    const std::shared_ptr<io::IoStatistics>& ioStats) {
   std::shared_ptr<dwio::common::WriterOptions> options = writerFactory_->createWriterOptions();
   const auto* connectorSessionProperties = queryCtx_->sessionProperties();
   // Only overwrite options in case they were not already provided.
@@ -130,7 +131,7 @@ const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
       return exec::MemoryReclaimer::create();
     };
   }
-  options->sessionTimezoneName = queryCtx_->sessionTimezone();
+  // options->sessionTimezoneName = queryCtx_->sessionTimezone();
   options->adjustTimestampToTimezone = queryCtx_->adjustTimestampToTimezone();
   options->processConfigs(*writeConfig_->config(), *connectorSessionProperties);
   // Prevents the memory allocation during the writer creation.
@@ -142,7 +143,7 @@ const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
               // .fileCreateConfig = writeConfig_->config(),
               .pool = writerInfo->sinkPool.get(),
               .metricLogger = dwio::common::MetricsLog::voidLog(),
-              .stats = ioStats_.back().get(),
+              .stats = ioStats.get(),
           }), options);
 }
 
@@ -209,7 +210,7 @@ uint32_t FileSystemDataSink::appendWriter(const FsWriterId& id) {
       std::time(nullptr)));
   ioStats_.emplace_back(std::make_shared<io::IoStatistics>());
   // setMemoryReclaimers(writerInfo_.back().get(), ioStats_.back().get());
-  auto writer = createWriter(writePath, writerInfo_.back());
+  auto writer = createWriter(writePath, writerInfo_.back(), ioStats_.back());
   writers_.emplace_back(std::move(writer));
   // Extends the buffer used for partition rows calculations.
   partitionSizes_.emplace_back(0);
@@ -241,7 +242,7 @@ uint32_t FileSystemDataSink::updateWriter(const FsWriterId& id) {
     std::time(nullptr)
   );
   const auto writePath = fs::path(writerParameters.writeDirectory()) / writerParameters.writeFileName();
-  auto writer = createWriter(writePath, writerInfo_[index]);
+  auto writer = createWriter(writePath, writerInfo_[index], ioStats_[index]);
   writers_[index] = std::move(writer);
   return index;
 }
@@ -482,7 +483,7 @@ void FileSystemDataSink::commit(int64_t id) {
       if (writeConfig_->getPartitionCommitPolicy() == "success-file") {
         const auto sucessFilePath = writerParams.writeDirectory() + "/SUCCESS";
         if (!fs_->exists(sucessFilePath)) {
-          auto writer = createWriter(sucessFilePath, writerInfo);
+          auto writer = createWriter(sucessFilePath, writerInfo, std::make_shared<io::IoStatistics>());
           writer->close();
         }
       }

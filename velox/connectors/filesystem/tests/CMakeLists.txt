@@ -11,23 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+add_executable(velox_filesystem_connector_test FileSystemConnectorTest.cpp)
 
-# velox_add_library(velox_kafka_config OBJECT KafkaConfig.cpp)
-# velox_link_libraries(velox_kafka_config velox_core velox_exception)
+add_test(velox_filesystem_connector_test velox_filesystem_connector_test)
 
-velox_add_library(
+target_link_libraries(
+  velox_filesystem_connector_test
   velox_filesystem_connector
-  OBJECT
-  FileSystemConfig.cpp
-  FileSystemConnector.cpp
-  FileSystemInsertTableHandle.cpp
-  FileSystemDataSink.cpp)
-
-velox_link_libraries(
-  velox_filesystem_connector
-  velox_common_io
-  velox_connector)
-
-if(${VELOX_BUILD_TESTING})
-  add_subdirectory(tests)
-endif()
+  velox_vector_test_lib
+  velox_exec
+  velox_exec_test_lib
+  GTest::gtest
+  GTest::gtest_main)
