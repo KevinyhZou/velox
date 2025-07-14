@@ -15,36 +15,51 @@
  */
 #pragma once
 
-#include "velox/exec/FilterProject.h"
 #include "velox/experimental/stateful/StatefulOperator.h"
 #include "velox/experimental/stateful/StatefulPlanNode.h"
+#include "velox/experimental/stateful/StreamElement.h"
 
 namespace facebook::velox::stateful {
 
-/// It is related to org.apache.flink.table.runtime.operators.wmassigners.WatermarkAssignerOperator
-/// in Flink. It extracts timestamp from each row and generate periodic watermark.
-class WatermarkAssigner : public StatefulOperator {
+class StreamPartition : public StatefulOperator {
  public:
-  WatermarkAssigner(
-    std::unique_ptr<exec::Operator> op,
-    std::vector<std::unique_ptr<StatefulOperator>> targets,
-    const long idleTimeout,
-    const int rowtimeFieldIndex,
-    const long watermarkInterval);
+  StreamPartition(
+      std::unique_ptr<exec::Operator> op,
+      const core::PartitionFunctionSpec& partitionFunctionSpec,
+      int numPartitions);
+
+  void initialize() override;
+
+  bool isFinished() override;
 
   void addInput(RowVectorPtr input) override;
 
   void getOutput() override;
 
+  void close() override;
+
  private:
-  void advanceWatermark();
+  void pushToTask(StreamElementPtr output);
+
+  void prepareForInput(RowVectorPtr& input);
+
+  void allocateIndexBuffers(const std::vector<vector_size_t>& sizes);
+
+  RowVectorPtr wrapChildren(
+      const RowVectorPtr& input,
+      vector_size_t size,
+      const BufferPtr& indices);
+
+  const std::unique_ptr<core::PartitionFunction> partitionFunction_;
+  const int numPartitions_;
 
   RowVectorPtr input_;
-  const long idleTimeout_;
-  const int rowtimeFieldIndex_;
-  const long watermarkInterval_;
 
-  long currentWatermark = 0;
-  long lastWatermark = 0;
+  /// Reusable memory for hash calculation.
+  std::vector<uint32_t> partitions_;
+  /// Reusable buffers for input partitioning.
+  std::vector<BufferPtr> indexBuffers_;
+  std::vector<vector_size_t*> rawIndices_;
 };
+
 } // namespace facebook::velox::stateful
