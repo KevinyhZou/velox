@@ -126,9 +126,7 @@ void StatefulTask::finish() {
 }
 
 void StatefulTask::commit(int64_t id) {
-  for (auto& op : operators_) {
-    op->commit(id);
-  }
+  operatorChain_->commit(id);
 }
 
 } // namespace facebook::velox::stateful

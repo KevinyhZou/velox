@@ -50,6 +50,13 @@ void StatefulOperator::close() {
   targets_.clear();
 }
 
+void StatefulOperator::commit(int64_t id) {
+  operator_->commit(id);
+  for (auto& target : targets_) {
+    target->commit(id);
+  }
+}
+
 void StatefulOperator::getOutput() {
   sourceEmpty_ = true;
   auto intermediateResult = operator_->getOutput();
