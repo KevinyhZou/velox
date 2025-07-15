@@ -15,23 +15,24 @@
  */
 #pragma once
 
+#include <algorithm>
+#include "folly/dynamic.h"
 #include "velox/connectors/Connector.h"
 #include "velox/type/Type.h"
-#include "folly/dynamic.h"
-#include <algorithm>
 
 namespace facebook::velox::connector::filesystem {
 
-using ConnectorInsertTableHandlePtr = std::shared_ptr<const ConnectorInsertTableHandle>;
+using ConnectorInsertTableHandlePtr =
+    std::shared_ptr<const ConnectorInsertTableHandle>;
 
 class FileSystemInsertTableHandle : public ConnectorInsertTableHandle {
-public:
- FileSystemInsertTableHandle(
-    std::string tableName,
-    const RowTypePtr& dataColumns,
-    const std::vector<uint32_t>& partitionIndexes = {},
-    const std::vector<std::string>& partitionKeys = {},
-    const std::unordered_map<std::string, std::string>& tableParameters = {}) ;
+ public:
+  FileSystemInsertTableHandle(
+      std::string tableName,
+      const RowTypePtr& dataColumns,
+      const std::vector<uint32_t>& partitionIndexes = {},
+      const std::vector<std::string>& partitionKeys = {},
+      const std::unordered_map<std::string, std::string>& tableParameters = {});
 
   const RowTypePtr& dataColumns() const {
     return dataColumns_;
@@ -62,11 +63,12 @@ public:
       void* context);
 
   static void registerSerDe();
-private:
-    std::string tableName_;
-    const RowTypePtr dataColumns_;
-    const std::vector<uint32_t> partitionIndexes_;
-    const std::vector<std::string> partitionKeys_;
-    const std::unordered_map<std::string, std::string> tableParameters_;
+
+ private:
+  std::string tableName_;
+  const RowTypePtr dataColumns_;
+  const std::vector<uint32_t> partitionIndexes_;
+  const std::vector<std::string> partitionKeys_;
+  const std::unordered_map<std::string, std::string> tableParameters_;
 };
-}
+} // namespace facebook::velox::connector::filesystem

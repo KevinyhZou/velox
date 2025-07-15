@@ -22,29 +22,41 @@ namespace facebook::velox::connector::filesystem {
 using ConfigPtr = std::shared_ptr<const config::ConfigBase>;
 
 class FileSystemWriteConfig {
-public:
-  FileSystemWriteConfig(const ConfigPtr & config) : config_(config) {}
+ public:
+  FileSystemWriteConfig(const ConfigPtr& config) : config_(config) {}
 
   static constexpr const char* kPath = "path";
   /// The config key fo format
   static constexpr const char* kFormat = "format";
-  static constexpr const char* kFileRollingInterval = "sink.rolling-policy.rollover-interval";
-  static constexpr const char* kFileRollingSize = "sink.rolling-policy.file-size";
+  static constexpr const char* kFileRollingInterval =
+      "sink.rolling-policy.rollover-interval";
+  static constexpr const char* kFileRollingSize =
+      "sink.rolling-policy.file-size";
   static constexpr const char* kFileNamePrefix = "fs.file_name_prefix";
   static constexpr const char* kFileNameSuffix = "fs.file_name_suffix";
   static constexpr const char* kTaskId = "fs.writer_task_id";
-  static constexpr const char* kPartitionCommitTrigger = "sink.partition-commit.trigger";
-  static constexpr const char* kPartitionCommitPolicy = "sink.partition-commit.policy.kind";
-  static constexpr const char* kPartitionCommitDelay = "sink.partition-commit.delay";
-  static constexpr const char* kPartitionTimeExtractPattern = "partition.time-extractor.timestamp-pattern";
+  static constexpr const char* kPartitionCommitTrigger =
+      "sink.partition-commit.trigger";
+  static constexpr const char* kPartitionCommitPolicy =
+      "sink.partition-commit.policy.kind";
+  static constexpr const char* kPartitionCommitDelay =
+      "sink.partition-commit.delay";
+  static constexpr const char* kPartitionTimeExtractPattern =
+      "partition.time-extractor.timestamp-pattern";
   /// The default value of max partitions per writer.
   static constexpr const int32_t defaultMaxPartitionsPerWriter = 65535;
 
   const std::string getPath();
   const std::string getFormat();
-  const bool allowNullPartitionKeys() { return false; }
-  const int32_t maxPartitionsPerWriter() { return defaultMaxPartitionsPerWriter; }
-  const bool isPartitionPathAsLowerCase() { return true; }
+  const bool allowNullPartitionKeys() {
+    return false;
+  }
+  const int32_t maxPartitionsPerWriter() {
+    return defaultMaxPartitionsPerWriter;
+  }
+  const bool isPartitionPathAsLowerCase() {
+    return true;
+  }
   const std::string getFileNamePrefix();
   const std::string getFileNameSuffix();
   const int32_t getFileRollingIntervalMinutes();
@@ -54,8 +66,12 @@ public:
   const std::string getPartitionCommitPolicy();
   const int32_t getPartitionCommitDelayMinutes();
   const std::string getPartitionTimeExtractPattern();
-  const std::string getFileCompressionType() { return "None"; }
-  const bool flushOnWrite() { return true; }
+  const std::string getFileCompressionType() {
+    return "None";
+  }
+  const bool flushOnWrite() {
+    return true;
+  }
   const bool exists(const std::string& configKey) {
     return config_ && config_->valueExists(configKey);
   }
@@ -67,17 +83,19 @@ public:
   template <typename T>
   const std::shared_ptr<T> setConfigs(
       const std::unordered_map<std::string, std::string>& configs) const {
-    std::unordered_map<std::string, std::string> rawConfigs = config_->rawConfigsCopy();
+    std::unordered_map<std::string, std::string> rawConfigs =
+        config_->rawConfigsCopy();
     rawConfigs.insert(configs.begin(), configs.end());
     ConfigPtr newConfig =
         std::make_shared<const config::ConfigBase>(std::move(rawConfigs));
     return std::make_shared<T>(newConfig);
   }
 
-private:
-    ConfigPtr config_;
+ private:
+  ConfigPtr config_;
 
-    template <typename T, bool throwException>
-    const T checkAndGetConfigValue(const std::string& configKey, T defaultValue) const;
+  template <typename T, bool throwException>
+  const T checkAndGetConfigValue(const std::string& configKey, T defaultValue)
+      const;
 };
-}
+} // namespace facebook::velox::connector::filesystem

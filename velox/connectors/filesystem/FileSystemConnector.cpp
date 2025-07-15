@@ -15,37 +15,40 @@
  */
 
 #include "velox/connectors/filesystem/FileSystemConnector.h"
-#include "velox/connectors/filesystem/FileSystemInsertTableHandle.h"
 #include "velox/common/config/Config.h"
+#include "velox/connectors/filesystem/FileSystemInsertTableHandle.h"
 
 namespace facebook::velox::connector::filesystem {
 
-    std::unique_ptr<DataSource> FileSystemConnector::createDataSource(
-        const RowTypePtr& outputType,
-        const std::shared_ptr<connector::ConnectorTableHandle>& tableHandle,
-        const std::unordered_map<std::string, std::shared_ptr<ColumnHandle>>& columnHandles,
-        ConnectorQueryCtx* connectorQueryCtx) {
-        VELOX_NYI();
-    }
-
-    std::unique_ptr<DataSink> FileSystemConnector::createDataSink(
-        RowTypePtr inputType,
-        std::shared_ptr<ConnectorInsertTableHandle> connectorInsertTableHandle,
-        ConnectorQueryCtx* connectorQueryCtx,
-        CommitStrategy /** commitStrategy */) {
-        
-        std::shared_ptr<FileSystemWriteConfig> writeConfig = std::make_shared<FileSystemWriteConfig>(config_);
-        std::shared_ptr<FileSystemInsertTableHandle> insertTableHandle = 
-            std::dynamic_pointer_cast<FileSystemInsertTableHandle>(connectorInsertTableHandle);
-        std::unordered_map<std::string, std::string> tableParams = insertTableHandle->tableParameters();
-        std::shared_ptr<FileSystemWriteConfig> newWriteConfig = 
-            writeConfig->setConfigs<FileSystemWriteConfig>(tableParams);
-        return std::make_unique<FileSystemDataSink>(
-            inputType,
-            insertTableHandle,
-            connectorQueryCtx,
-            newWriteConfig,
-            insertTableHandle->parititonIndexes(),
-            insertTableHandle->partitionKeys());
-    }
+std::unique_ptr<DataSource> FileSystemConnector::createDataSource(
+    const RowTypePtr& outputType,
+    const std::shared_ptr<connector::ConnectorTableHandle>& tableHandle,
+    const std::unordered_map<std::string, std::shared_ptr<ColumnHandle>>&
+        columnHandles,
+    ConnectorQueryCtx* connectorQueryCtx) {
+  VELOX_NYI();
 }
+
+std::unique_ptr<DataSink> FileSystemConnector::createDataSink(
+    RowTypePtr inputType,
+    std::shared_ptr<ConnectorInsertTableHandle> connectorInsertTableHandle,
+    ConnectorQueryCtx* connectorQueryCtx,
+    CommitStrategy /** commitStrategy */) {
+  std::shared_ptr<FileSystemWriteConfig> writeConfig =
+      std::make_shared<FileSystemWriteConfig>(config_);
+  std::shared_ptr<FileSystemInsertTableHandle> insertTableHandle =
+      std::dynamic_pointer_cast<FileSystemInsertTableHandle>(
+          connectorInsertTableHandle);
+  std::unordered_map<std::string, std::string> tableParams =
+      insertTableHandle->tableParameters();
+  std::shared_ptr<FileSystemWriteConfig> newWriteConfig =
+      writeConfig->setConfigs<FileSystemWriteConfig>(tableParams);
+  return std::make_unique<FileSystemDataSink>(
+      inputType,
+      insertTableHandle,
+      connectorQueryCtx,
+      newWriteConfig,
+      insertTableHandle->parititonIndexes(),
+      insertTableHandle->partitionKeys());
+}
+} // namespace facebook::velox::connector::filesystem

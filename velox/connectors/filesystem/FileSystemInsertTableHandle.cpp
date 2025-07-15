@@ -24,27 +24,27 @@ FileSystemInsertTableHandle::FileSystemInsertTableHandle(
     const std::vector<uint32_t>& partitionIndexes,
     const std::vector<std::string>& partitionKeys,
     const std::unordered_map<std::string, std::string>& tableParameters)
-  : tableName_(tableName),
-  dataColumns_(dataColumns),
-  partitionIndexes_(partitionIndexes),
-  partitionKeys_(partitionKeys),
-  tableParameters_(tableParameters) {}
+    : tableName_(tableName),
+      dataColumns_(dataColumns),
+      partitionIndexes_(partitionIndexes),
+      partitionKeys_(partitionKeys),
+      tableParameters_(tableParameters) {}
 
 std::string FileSystemInsertTableHandle::toString() const {
-     std::stringstream out;
+  std::stringstream out;
   out << "table: " << tableName_;
   if (dataColumns_) {
     out << ", data columns: " << dataColumns_->toString();
   }
   if (!partitionIndexes_.empty()) {
     out << ", partition indexes: ";
-    for (const auto & pIndex : partitionIndexes_) {
+    for (const auto& pIndex : partitionIndexes_) {
       out << pIndex << " ";
     }
   }
   if (!partitionKeys_.empty()) {
     out << ", partition keys: ";
-    for (const auto & pKey : partitionKeys_) {
+    for (const auto& pKey : partitionKeys_) {
       out << pKey << " ";
     }
   }
@@ -89,38 +89,36 @@ folly::dynamic FileSystemInsertTableHandle::serialize() const {
   return obj;
 }
 
-ConnectorInsertTableHandlePtr FileSystemInsertTableHandle::create(const folly::dynamic& obj, void* context) {
-    auto tableName = obj["tableName"].asString();
-    RowTypePtr dataColumns;
-    if (auto it = obj.find("dataColumns"); it != obj.items().end()) {
-        dataColumns = ISerializable::deserialize<RowType>(it->second, context);
+ConnectorInsertTableHandlePtr FileSystemInsertTableHandle::create(
+    const folly::dynamic& obj,
+    void* context) {
+  auto tableName = obj["tableName"].asString();
+  RowTypePtr dataColumns;
+  if (auto it = obj.find("dataColumns"); it != obj.items().end()) {
+    dataColumns = ISerializable::deserialize<RowType>(it->second, context);
+  }
+  std::vector<std::string> partitionKeys;
+  if (auto it = obj.find("partitionKeys"); it != obj.items().end()) {
+    const auto& partitionKeysArray = obj["partitionKeys"];
+    for (const auto& item : partitionKeysArray) {
+      partitionKeys.emplace_back(item.asString());
     }
-    std::vector<std::string> partitionKeys;
-    if (auto it = obj.find("partitionKeys"); it != obj.items().end()) {
-      const auto& partitionKeysArray = obj["partitionKeys"];
-      for (const auto& item : partitionKeysArray) {
-        partitionKeys.emplace_back(item.asString());
-      }
+  }
+  std::vector<uint32_t> partitionIndexes;
+  if (auto it = obj.find("partitionIndexes"); it != obj.items().end()) {
+    const auto& partitionIndexArray = obj["partitionIndexes"];
+    for (const auto& item : partitionIndexArray) {
+      partitionIndexes.emplace_back(item.asInt());
     }
-    std::vector<uint32_t> partitionIndexes;
-    if (auto it = obj.find("partitionIndexes"); it != obj.items().end()) {
-      const auto& partitionIndexArray = obj["partitionIndexes"];
-      for (const auto& item : partitionIndexArray) {
-        partitionIndexes.emplace_back(item.asInt());
-      }
-    }
-    std::unordered_map<std::string, std::string> tableParameters{};
-    const auto& tableParametersObj = obj["tableParameters"];
-    for (const auto& key : tableParametersObj.keys()) {
-        const auto& value = tableParametersObj[key];
-        tableParameters.emplace(key.asString(), value.asString());
-    }
-    return std::make_shared<const FileSystemInsertTableHandle>(
-        tableName,
-        dataColumns,
-        partitionIndexes,
-        partitionKeys,
-        tableParameters);
+  }
+  std::unordered_map<std::string, std::string> tableParameters{};
+  const auto& tableParametersObj = obj["tableParameters"];
+  for (const auto& key : tableParametersObj.keys()) {
+    const auto& value = tableParametersObj[key];
+    tableParameters.emplace(key.asString(), value.asString());
+  }
+  return std::make_shared<const FileSystemInsertTableHandle>(
+      tableName, dataColumns, partitionIndexes, partitionKeys, tableParameters);
 }
 
 void FileSystemInsertTableHandle::registerSerDe() {
@@ -128,4 +126,4 @@ void FileSystemInsertTableHandle::registerSerDe() {
   registry.Register("FileSystemInsertTableHandle", create);
 }
 
-}
+} // namespace facebook::velox::connector::filesystem

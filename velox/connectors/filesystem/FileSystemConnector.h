@@ -21,17 +21,19 @@
 namespace facebook::velox::connector::filesystem {
 
 class FileSystemConnector : public Connector {
-public:
+ public:
   FileSystemConnector(
       const std::string& id,
       std::shared_ptr<const config::ConfigBase> config,
       folly::Executor* /* executor **/
-  ) : Connector(id), config_(config) {}
+      )
+      : Connector(id), config_(config) {}
 
   std::unique_ptr<DataSource> createDataSource(
       const RowTypePtr& outputType,
       const std::shared_ptr<connector::ConnectorTableHandle>& tableHandle,
-      const std::unordered_map<std::string, std::shared_ptr<ColumnHandle>>& columnHandles,
+      const std::unordered_map<std::string, std::shared_ptr<ColumnHandle>>&
+          columnHandles,
       ConnectorQueryCtx* connectorQueryCtx) override;
 
   std::unique_ptr<DataSink> createDataSink(
@@ -41,10 +43,11 @@ public:
       CommitStrategy commitStrategy) override;
 
   bool canAddDynamicFilter() const override {
-      return false;
+    return false;
   }
 
-  const std::shared_ptr<const config::ConfigBase>& connectorConfig() const override {
+  const std::shared_ptr<const config::ConfigBase>& connectorConfig()
+      const override {
     return config_;
   }
 
@@ -56,7 +59,7 @@ public:
     return false;
   }
 
-private:
+ private:
   std::shared_ptr<const config::ConfigBase> config_;
 };
 
@@ -78,4 +81,4 @@ class FileSystemConnectorFactory : public ConnectorFactory {
   }
 };
 
-}
+} // namespace facebook::velox::connector::filesystem

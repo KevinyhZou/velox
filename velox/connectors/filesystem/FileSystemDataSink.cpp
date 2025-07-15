@@ -15,16 +15,16 @@
  */
 
 #include "velox/connectors/filesystem/FileSystemDataSink.h"
+#include "velox/common/base/Fs.h"
 #include "velox/dwio/common/FileSink.h"
 #include "velox/dwio/common/Options.h"
-#include "velox/common/base/Fs.h"
 #include "velox/exec/OperatorUtils.h"
 #include "velox/type/TimestampConversion.h"
 
+#include <regex>
 #include "boost/uuid/uuid.hpp"
 #include "boost/uuid/uuid_generators.hpp"
 #include "boost/uuid/uuid_io.hpp"
-#include <regex>
 
 namespace facebook::velox::connector::filesystem {
 #define WRITER_NON_RECLAIMABLE_SECTION_GUARD(index)       \
@@ -98,19 +98,19 @@ FileSystemDataSink::FileSystemDataSink(
               : nullptr),
       dataChannels_(
           getNonPartitionChannels(partitionChannels_, inputType_->size())),
-      writerFactory_(
-          dwio::common::getWriterFactory(getFileFormat(writeConfig_->getFormat()))),
+      writerFactory_(dwio::common::getWriterFactory(
+          getFileFormat(writeConfig_->getFormat()))),
       fileNameGenerator_(std::make_shared<const FsFileNameGenerator>(
-        writeConfig_->getFileNamePrefix(),
-        writeConfig_->getFileNameSuffix(),
-        writeConfig_->getTaskId()
-      )) {}
+          writeConfig_->getFileNamePrefix(),
+          writeConfig_->getFileNameSuffix(),
+          writeConfig_->getTaskId())) {}
 
 const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
     const std::string& writePath,
     const std::shared_ptr<FsWriterInfo>& writerInfo,
     const std::shared_ptr<io::IoStatistics>& ioStats) {
-  std::shared_ptr<dwio::common::WriterOptions> options = writerFactory_->createWriterOptions();
+  std::shared_ptr<dwio::common::WriterOptions> options =
+      writerFactory_->createWriterOptions();
   const auto* connectorSessionProperties = queryCtx_->sessionProperties();
   // Only overwrite options in case they were not already provided.
   if (options->schema == nullptr) {
@@ -144,10 +144,12 @@ const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
               .pool = writerInfo->sinkPool.get(),
               .metricLogger = dwio::common::MetricsLog::voidLog(),
               .stats = ioStats.get(),
-          }), options);
+          }),
+      options);
 }
 
-const std::pair<std::string, std::string> FileSystemDataSink::getWriterFileNames() const {
+const std::pair<std::string, std::string>
+FileSystemDataSink::getWriterFileNames() const {
   return fileNameGenerator_->gen();
 }
 
@@ -160,19 +162,19 @@ std::string makePartitionDirectory(
   return tableDirectory;
 }
 
-FsWriterParameters FileSystemDataSink::getWriterParameters(const std::optional<std::string>& partition) const {
+FsWriterParameters FileSystemDataSink::getWriterParameters(
+    const std::optional<std::string>& partition) const {
   auto [targetFileName, writeFileName] = getWriterFileNames();
   return FsWriterParameters{
       partition,
       targetFileName,
-      makePartitionDirectory(
-          writeConfig_->getPath(), partition),
+      makePartitionDirectory(writeConfig_->getPath(), partition),
       writeFileName,
-      makePartitionDirectory(
-          writeConfig_->getPath(), partition)};
+      makePartitionDirectory(writeConfig_->getPath(), partition)};
 }
 
-std::shared_ptr<memory::MemoryPool> FileSystemDataSink::createWriterPool(const FsWriterId& writerId) {
+std::shared_ptr<memory::MemoryPool> FileSystemDataSink::createWriterPool(
+    const FsWriterId& writerId) {
   auto* connectorPool = queryCtx_->connectorMemoryPool();
   return connectorPool->addAggregateChild(
       fmt::format("{}.{}", connectorPool->name(), writerId.toString()));
@@ -200,7 +202,7 @@ uint32_t FileSystemDataSink::appendWriter(const FsWriterId& id) {
   // policy is used.
   auto writerParameters = getWriterParameters(partitionName);
   const auto writePath = fs::path(writerParameters.writeDirectory()) /
-      writerParameters.writeFileName();
+                         writerParameters.writeFileName();
   auto writerPool = createWriterPool(id);
   auto sinkPool = createSinkPool(writerPool);
   writerInfo_.emplace_back(std::make_shared<FsWriterInfo>(
@@ -230,18 +232,19 @@ uint32_t FileSystemDataSink::updateWriter(const FsWriterId& id) {
   VELOX_CHECK(it != writerIndexMap_.end());
   uint32_t index = it->second;
   const auto writerInfo = writerInfo_[index];
-  const std::optional<std::string> partitionName = writerInfo->writerParameters.partitionName();
+  const std::optional<std::string> partitionName =
+      writerInfo->writerParameters.partitionName();
   auto writerParameters = getWriterParameters(partitionName);
   if (!writerInfo_[index]->getCommitted()) {
     pendingWriterInfo_.emplace_back(writerInfo_[index]);
   }
   writerInfo_[index] = std::make_shared<FsWriterInfo>(
-    std::move(writerParameters),
-    writerInfo_[index]->writerPool,
-    writerInfo_[index]->sinkPool,
-    std::time(nullptr)
-  );
-  const auto writePath = fs::path(writerParameters.writeDirectory()) / writerParameters.writeFileName();
+      std::move(writerParameters),
+      writerInfo_[index]->writerPool,
+      writerInfo_[index]->sinkPool,
+      std::time(nullptr));
+  const auto writePath = fs::path(writerParameters.writeDirectory()) /
+                         writerParameters.writeFileName();
   auto writer = createWriter(writePath, writerInfo_[index], ioStats_[index]);
   writers_[index] = std::move(writer);
   return index;
@@ -297,7 +300,8 @@ void FileSystemDataSink::write(size_t index, RowVectorPtr input) {
   writerInfo_[index]->numWrittenRows += dataInput->size();
 }
 
-void FileSystemDataSink::computePartitionAndBucketIds(const RowVectorPtr& input) {
+void FileSystemDataSink::computePartitionAndBucketIds(
+    const RowVectorPtr& input) {
   VELOX_CHECK(isPartitioned() || isBucketed());
   if (isPartitioned()) {
     if (!writeConfig_->allowNullPartitionKeys()) {
@@ -333,8 +337,7 @@ void FileSystemDataSink::splitInputRowsAndEnsureWriters() {
 
   std::fill(partitionSizes_.begin(), partitionSizes_.end(), 0);
 
-  const auto numRows =
-      isPartitioned() ? partitionIds_.size() : 0;
+  const auto numRows = isPartitioned() ? partitionIds_.size() : 0;
   for (auto row = 0; row < numRows; ++row) {
     const auto id = getWriterId(row);
     const uint32_t index = ensureWriter(id);
@@ -344,8 +347,7 @@ void FileSystemDataSink::splitInputRowsAndEnsureWriters() {
     VELOX_DCHECK_EQ(partitionRows_.size(), rawPartitionRows_.size());
     if (FOLLY_UNLIKELY(partitionRows_[index] == nullptr) ||
         (partitionRows_[index]->capacity() < numRows * sizeof(vector_size_t))) {
-      partitionRows_[index] =
-          allocateIndices(numRows, queryCtx_->memoryPool());
+      partitionRows_[index] = allocateIndices(numRows, queryCtx_->memoryPool());
       rawPartitionRows_[index] =
           partitionRows_[index]->asMutable<vector_size_t>();
     }
@@ -391,9 +393,10 @@ void FileSystemDataSink::appendData(RowVectorPtr input) {
       continue;
     }
 
-    RowVectorPtr writerInput = partitionSize == input->size()
-        ? input
-        : exec::wrap(partitionSize, partitionRows_[index], input);
+    RowVectorPtr writerInput =
+        partitionSize == input->size()
+            ? input
+            : exec::wrap(partitionSize, partitionRows_[index], input);
     write(index, writerInput);
   }
 }
@@ -424,9 +427,11 @@ void FileSystemDataSink::checkStateTransition(State oldState, State newState) {
     default:
       break;
   }
-  VELOX_FAIL("Unexpected state transition from {} to {}", stateString(oldState), stateString(newState));
+  VELOX_FAIL(
+      "Unexpected state transition from {} to {}",
+      stateString(oldState),
+      stateString(newState));
 }
-
 
 bool FileSystemDataSink::finish() {
   // Flush is reentry state.
@@ -467,23 +472,30 @@ void FileSystemDataSink::commit(int64_t id) {
       continue;
     }
     const auto writerParams = writerInfo->writerParameters;
-    const auto writeFileName = writerParams.writeDirectory() + "/" + writerParams.writeFileName();
-    const auto targetFileName = writerParams.targetDirectory() + "/" + writerParams.targetFileName();
+    const auto writeFileName =
+        writerParams.writeDirectory() + "/" + writerParams.writeFileName();
+    const auto targetFileName =
+        writerParams.targetDirectory() + "/" + writerParams.targetFileName();
     if (!fs_) {
       fs_ = filesystems::getFileSystem(writeFileName, writeConfig_->config());
     }
     fs_->rename(writeFileName, targetFileName);
     std::optional<std::string> partitionName = writerParams.partitionName();
     int64_t partitionTimestamp = 0;
-    if (partitionName.has_value() && writeConfig_->getPartitionCommitTrigger() == "partition-time") {
-      partitionTimestamp = extractTimestampFromPartitionName(partitionName.value());
+    if (partitionName.has_value() &&
+        writeConfig_->getPartitionCommitTrigger() == "partition-time") {
+      partitionTimestamp =
+          extractTimestampFromPartitionName(partitionName.value());
     }
-    int64_t commitDelaySeconds = writeConfig_->getPartitionCommitDelayMinutes() * 60;
-    if (partitionTimestamp != 0 && watermark_ > partitionTimestamp + commitDelaySeconds) {
+    int64_t commitDelaySeconds =
+        writeConfig_->getPartitionCommitDelayMinutes() * 60;
+    if (partitionTimestamp != 0 &&
+        watermark_ > partitionTimestamp + commitDelaySeconds) {
       if (writeConfig_->getPartitionCommitPolicy() == "success-file") {
         const auto sucessFilePath = writerParams.writeDirectory() + "/SUCCESS";
         if (!fs_->exists(sucessFilePath)) {
-          auto writer = createWriter(sucessFilePath, writerInfo, std::make_shared<io::IoStatistics>());
+          auto writer = createWriter(
+              sucessFilePath, writerInfo, std::make_shared<io::IoStatistics>());
           writer->close();
         }
       }
@@ -531,14 +543,15 @@ std::vector<std::string> FileSystemDataSink::close() {
   return partitionUpdates;
 }
 
-const int64_t FileSystemDataSink::extractTimestampFromPartitionName(const std::string& partitionName) {
+const int64_t FileSystemDataSink::extractTimestampFromPartitionName(
+    const std::string& partitionName) {
   std::string extractPattern = writeConfig_->getPartitionTimeExtractPattern();
   if (extractPattern.empty()) {
     return 0;
   }
   std::string pName = partitionName;
   std::regex urlEncodedPattern("%[0-9A-Fa-f]{2}");
-  if(std::regex_search(pName, urlEncodedPattern)) {
+  if (std::regex_search(pName, urlEncodedPattern)) {
     std::string result;
     for (size_t i = 0; i < pName.size(); ++i) {
       if (pName[i] == '%') {
@@ -555,27 +568,30 @@ const int64_t FileSystemDataSink::extractTimestampFromPartitionName(const std::s
           result += pName[i];
         }
       } else if (pName[i] == '+') {
-            result += ' ';
+        result += ' ';
       } else {
-            result += pName[i];
+        result += pName[i];
       }
     }
     pName = result;
   }
   std::vector<std::string> partitionKVs;
-  boost::algorithm::split(partitionKVs, pName, boost::algorithm::is_any_of("/"));
+  boost::algorithm::split(
+      partitionKVs, pName, boost::algorithm::is_any_of("/"));
   VELOX_CHECK(partitionKVs.size() == partitionKeys_.size());
   for (size_t i = 0; i < partitionKVs.size(); ++i) {
     boost::algorithm::replace_all(partitionKVs[i], partitionKeys_[i] + "=", "");
-    boost::algorithm::replace_all(extractPattern, "$" + partitionKeys_[i], partitionKVs[i]);
+    boost::algorithm::replace_all(
+        extractPattern, "$" + partitionKeys_[i], partitionKVs[i]);
   }
-  const auto timestamp = util::fromTimestampString(
-    extractPattern.data(),
-    extractPattern.size(),
-    util::TimestampParseMode::kLegacyCast)
-    .thenOrThrow(folly::identity, [&](const Status& status) {
-      VELOX_FAIL("error while parse timestamp: {}", status.message());
-  });
+  const auto timestamp =
+      util::fromTimestampString(
+          extractPattern.data(),
+          extractPattern.size(),
+          util::TimestampParseMode::kLegacyCast)
+          .thenOrThrow(folly::identity, [&](const Status& status) {
+            VELOX_FAIL("error while parse timestamp: {}", status.message());
+          });
   return timestamp.getSeconds();
 }
 
@@ -583,16 +599,16 @@ const std::pair<std::string, std::string> FsFileNameGenerator::gen() const {
   std::pair<std::string, std::string> fileNames;
   std::stringstream targetFileName;
   std::stringstream writeFileName;
-  targetFileName << "part-" << prefix_ << "-"
-    << taskId_ << "-" 
-    << partCounter_ << suffix_;
+  targetFileName << "part-" << prefix_ << "-" << taskId_ << "-" << partCounter_
+                 << suffix_;
   boost::uuids::random_generator generator;
-  boost::uuids::uuid uuid  = generator();
-  writeFileName << "." << targetFileName.str() << ".inprogress." << to_string(uuid);
+  boost::uuids::uuid uuid = generator();
+  writeFileName << "." << targetFileName.str() << ".inprogress."
+                << to_string(uuid);
   fileNames.first = targetFileName.str();
   fileNames.second = writeFileName.str();
-  partCounter_ ++;
+  partCounter_++;
   return fileNames;
 }
 
-}
+} // namespace facebook::velox::connector::filesystem
