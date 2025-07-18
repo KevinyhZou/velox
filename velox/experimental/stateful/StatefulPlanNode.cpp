@@ -179,11 +179,11 @@ folly::dynamic TimeWindowNode::serialize() const {
   obj["type"] = static_cast<int>(type_);
   folly::dynamic parameters = folly::dynamic::object();
   parameters["windowSize"] = params_.windowSize;
+  parameters["offset"] = params_.offset;
   parameters["slidingSize"] = params_.slidingSize;
   parameters["gapSize"] = params_.gapSize;
   parameters["isEventTime"] = params_.isEventTime;
   parameters["timeFieldIndex"] = params_.timeFieldIndex;
-  parameters["delay"] = params_.delay;
   obj["parameters"] = parameters;
   return obj;
 }
@@ -203,9 +203,9 @@ core::PlanNodePtr TimeWindowNode::create(const folly::dynamic& obj, void* contex
   auto windowParameters = obj["parameters"];
   TimeWindowNode::WindowParameters params;
   params.windowSize = windowParameters["windowSize"].asInt();
+  params.offset = windowParameters["offset"].asInt();
   params.slidingSize = windowParameters["slidingSize"].asInt();
   params.gapSize = windowParameters["gapSize"].asInt();
-  params.delay = windowParameters["delay"].asInt();
   params.isEventTime = windowParameters["isEventTime"].asBool();
   params.timeFieldIndex = windowParameters["timeFieldIndex"].asInt();
   return std::make_shared<TimeWindowNode>(

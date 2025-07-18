@@ -38,8 +38,7 @@ TimeWindow::TimeWindow(
     driverCtx_(driverCtx),
     windowNode_(windowNode),
     isEventTime_(windowNode_->parameters().isEventTime),
-    timeFieldIndex_(windowNode_->parameters().timeFieldIndex),
-    delay_(windowNode_->parameters().delay) {}
+    timeFieldIndex_(windowNode_->parameters().timeFieldIndex) {}
 
 const time_t TimeWindow::lastSliceEnd() {
     if (slices_.empty()) {
@@ -103,12 +102,9 @@ RowVectorPtr TimeWindow::getOutput() {
         VELOX_UNSUPPORTED("Event time window not be supported yet.");
     }
     for (auto it = slices_.begin(); it != slices_.end(); ) {
-        if (fireTime >= (*it)->end_ + delay_) {
-            const std::shared_ptr<exec::Window> executor = 
-                std::make_shared<exec::Window>(operatorId_, driverCtx_, windowNode_);
-            const RowVectorPtr windowOutput = (*it)->getOutput(executor);
+        if (fireTime >= (*it)->end_ ) {
+            const RowVectorPtr windowOutput = fire((*it));
             output->append(windowOutput.get());
-            executor->close();
             (*it)->close();
             it = slices_.erase(it);
         } else {
@@ -130,7 +126,9 @@ TumbleTimeWindow::TumbleTimeWindow(
     int32_t operatorId,
     exec::DriverCtx* driverCtx,
     const std::shared_ptr<const TimeWindowNode>& windowNode
-) : TimeWindow(operatorId, driverCtx, windowNode), size_(windowNode->parameters().windowSize), offset_(0) {}
+) : TimeWindow(operatorId, driverCtx, windowNode), 
+size_(windowNode->parameters().windowSize),
+offset_(windowNode->parameters().offset) {}
 
 const std::shared_ptr<TimeSlice> TumbleTimeWindow::assignTimeSlice(const time_t timestamp) {
     const time_t start = getWindowStartWithOffset(timestamp, offset_, size_);
@@ -145,6 +143,57 @@ const std::shared_ptr<TimeSlice> TumbleTimeWindow::assignTimeSlice(const time_t 
         pool(),
         inputRowType,
         outputRowType);
+}
+
+const RowVectorPtr TumbleTimeWindow::fire(const std::shared_ptr<TimeSlice>& slice) {
+    const std::shared_ptr<exec::Window> executor =
+        std::make_shared<exec::Window>(operatorId_, driverCtx_, windowNode_);
+    const RowVectorPtr windowOutput = slice->getOutput(executor);
+    slice->isFired = true;
+    executor->close();
+}
+
+HopTimeWindow::HopTimeWindow(
+    int32_t operatorId,
+    exec::DriverCtx* driverCtx,
+    const std::shared_ptr<const TimeWindowNode>& windowNode
+) : TimeWindow(operatorId, driverCtx, windowNode),
+size_(windowNode->parameters().windowSize),
+offset_(windowNode->parameters().offset),
+slide_(windowNode->parameters().slidingSize) {}
+
+const std::shared_ptr<TimeSlice> HopTimeWindow::assignTimeSlice(const time_t timestamp) {
+    const time_t start = getWindowStartWithOffset(timestamp, offset_, size_);
+    const time_t end = start + size_;
+    const RowTypePtr inputRowType = std::dynamic_pointer_cast<const RowType>(inputType_);
+    const RowTypePtr outputRowType = std::dynamic_pointer_cast<const RowType>(outputType_);
+    VELOX_CHECK(inputRowType != nullptr);
+    VELOX_CHECK(outputRowType != nullptr);
+    return std::make_shared<TimeSlice>(
+        start, 
+        end,
+        pool(),
+        inputRowType,
+        outputRowType);
+}
+
+const RowVectorPtr HopTimeWindow::fire(const std::shared_ptr<TimeSlice>& slice) {
+    return nullptr;
+}
+
+SessionTimeWindow::SessionTimeWindow(
+    int32_t operatorId,
+    exec::DriverCtx* driverCtx,
+    const std::shared_ptr<const TimeWindowNode>& windowNode
+) : TimeWindow(operatorId, driverCtx, windowNode),
+gap_(windowNode->parameters().gapSize) {}
+
+const std::shared_ptr<TimeSlice> SessionTimeWindow::assignTimeSlice(const time_t timestamp) {
+    return nullptr;
+}
+
+const RowVectorPtr SessionTimeWindow::fire(const std::shared_ptr<TimeSlice>& slice) {
+    return nullptr;
 }
 
 }

@@ -238,10 +238,10 @@ public:
   };
 
   struct WindowParameters {
-    int32_t windowSize;
-    int32_t slidingSize;
-    int32_t gapSize;
-    int32_t delay;
+    int64_t windowSize;
+    int64_t offset;
+    int64_t slidingSize;
+    int64_t gapSize;
     bool isEventTime;
     int32_t timeFieldIndex;
   };

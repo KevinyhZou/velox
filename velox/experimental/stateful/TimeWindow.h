@@ -46,6 +46,8 @@ public:
     const RowTypePtr inputType_;
     const RowTypePtr outputType_;
     mutable RowVectorPtr input_;
+    mutable RowVectorPtr output_;
+    mutable bool isFired = false;
     mutable std::vector<vector_size_t> inputSelector_;
 
     void addInput(const size_t index) {
@@ -96,18 +98,19 @@ public:
 protected:
     const TypePtr inputType_;
     const TypePtr outputType_;
-    const time_t lastSliceEnd();
-    const time_t getWindowStartWithOffset(const time_t timestamp, const time_t offset, const time_t windowSize);
-    virtual const std::shared_ptr<TimeSlice> assignTimeSlice(const time_t timestamp) = 0;
-private:
-    mutable bool isRunning = true;
     const int32_t operatorId_;
     exec::DriverCtx* driverCtx_;
     const std::shared_ptr<const TimeWindowNode> windowNode_;
+    mutable std::vector<std::shared_ptr<TimeSlice>> slices_;
+
+    const time_t lastSliceEnd();
+    const time_t getWindowStartWithOffset(const time_t timestamp, const time_t offset, const time_t windowSize);
+    virtual const std::shared_ptr<TimeSlice> assignTimeSlice(const time_t timestamp) = 0;
+    virtual const RowVectorPtr fire(const std::shared_ptr<TimeSlice>& slice) = 0;
+private:
+    mutable bool isRunning = true;
     const bool isEventTime_;
     const int32_t timeFieldIndex_;
-    const int32_t delay_;
-    mutable std::vector<std::shared_ptr<TimeSlice>> slices_;
 };
 
 class TumbleTimeWindow : public TimeWindow {
@@ -123,9 +126,51 @@ public:
 
 protected:
     const std::shared_ptr<TimeSlice> assignTimeSlice(const time_t timestamp) override;
+    const RowVectorPtr fire(const std::shared_ptr<TimeSlice>& slice) override;
 
 private:
     time_t size_;
     time_t offset_ = 0;
 };
+
+class HopTimeWindow : public TimeWindow {
+public:
+    HopTimeWindow(
+        int32_t operatorId,
+        exec::DriverCtx* driverCtx,
+        const std::shared_ptr<const TimeWindowNode>& windowNode);
+    
+    const TimeWindowNode::WindowType type() override {
+        return TimeWindowNode::WindowType::HOP;
+    }
+
+protected:
+    const std::shared_ptr<TimeSlice> assignTimeSlice(const time_t timestamp) override;
+    const RowVectorPtr fire(const std::shared_ptr<TimeSlice>& slice);
+
+private:
+    time_t size_;
+    time_t slide_;
+    time_t offset_;
+};
+
+class SessionTimeWindow : public TimeWindow {
+public:
+    SessionTimeWindow(
+        int32_t operatorId,
+        exec::DriverCtx* driverCtx,
+        const std::shared_ptr<const TimeWindowNode>& windowNode);
+
+    const TimeWindowNode::WindowType type() override {
+        return TimeWindowNode::WindowType::SESSION;
+    }
+
+protected:
+    const std::shared_ptr<TimeSlice> assignTimeSlice(const time_t timestamp) override;
+    const RowVectorPtr fire(const std::shared_ptr<TimeSlice>& slice);
+
+private:
+    time_t gap_;
+};
+
 }
