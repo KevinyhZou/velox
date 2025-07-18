@@ -17,6 +17,7 @@
 #pragma once
 
 #include <boost/algorithm/string.hpp>
+#include <ctime>
 
 #include "velox/functions/lib/DateTimeFormatter.h"
 #include "velox/functions/lib/TimeUtils.h"
@@ -493,6 +494,17 @@ struct MakeDateFunction {
       return false;
     }
     result = daysSinceEpoch;
+    return true;
+  }
+};
+
+template <typename T>
+struct CurrentTimestampFunction {
+  VELOX_DEFINE_FUNCTION_TYPES(T);
+
+  FOLLY_ALWAYS_INLINE bool call(
+      out_type<Timestamp>& result) {
+    result = Timestamp::now();
     return true;
   }
 };
