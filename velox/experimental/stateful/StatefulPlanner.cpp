@@ -50,6 +50,7 @@
 #include "velox/experimental/stateful/StreamPartition.h"
 #include "velox/experimental/stateful/StreamJoin.h"
 #include "velox/experimental/stateful/WatermarkAssigner.h"
+#include "velox/experimental/stateful/TimeWindow.h"
 
 namespace facebook::velox::stateful {
 

@@ -16,6 +16,7 @@
 #pragma once
 
 #include "velox/core/PlanNode.h"
+#include "velox/core/Expressions.h"
 
 namespace facebook::velox::stateful {
 
@@ -227,4 +228,50 @@ class EmptyNode : public core::PlanNode {
 
   const RowTypePtr outputType_;
 };
+
+class TimeWindowNode : public core::WindowNode {
+public:
+  enum WindowType {
+      TUMBLE,
+      HOP,
+      SESSION
+  };
+
+  struct WindowParameters {
+    int32_t windowSize;
+    int32_t slidingSize;
+    int32_t gapSize;
+    int32_t delay;
+    bool isEventTime;
+    int32_t timeFieldIndex;
+  };
+
+  TimeWindowNode(
+    core::PlanNodeId id,
+    std::vector<core::FieldAccessTypedExprPtr> partitionKeys,
+    std::vector<std::string> windowColumnNames,
+    std::vector<core::WindowNode::Function> windowFunctions,
+    core::PlanNodePtr source,
+    WindowType type,
+    WindowParameters params) : 
+  core::WindowNode(id, partitionKeys, {}, {}, windowColumnNames, windowFunctions, false, source),
+  type_(type),
+  params_(params) {}
+
+  std::string_view name() const override {
+    return "TimeWindow";
+  }
+
+  const WindowParameters parameters() const {
+    return params_;
+  }
+
+  folly::dynamic serialize() const override;
+  
+  static core::PlanNodePtr create(const folly::dynamic& obj, void* context);
+private:
+    WindowType type_;
+    WindowParameters params_;
+};
+
 } // namespace facebook::velox::stateful
