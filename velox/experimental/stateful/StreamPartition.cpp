@@ -42,7 +42,6 @@ bool StreamPartition::isFinished() {
 }
 
 void StreamPartition::addInput(RowVectorPtr input) {
-  std::cout << "StreamPartition::addInput: " << std::endl;
   VELOX_CHECK_NULL(input_);
   input_ = std::move(input);
 }

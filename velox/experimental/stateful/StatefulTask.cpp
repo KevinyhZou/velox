@@ -16,8 +16,6 @@
 #include "velox/experimental/stateful/StatefulPlanner.h"
 #include "velox/experimental/stateful/StatefulTask.h"
 
-#include <iostream>
-
 namespace facebook::velox::stateful {
 
 // static
@@ -54,14 +52,12 @@ StatefulTask::~StatefulTask() {
 }
 
 void StatefulTask::initOperators() {
-
   auto self = shared_from_this();
   // Create the operators.
   VELOX_CHECK_NULL(operatorChain_);
   auto driverCtx = std::make_unique<exec::DriverCtx>(self, 0, 0, -1, 0);
   driver = exec::Driver::testingCreate(std::move(driverCtx));
   operatorChain_ = std::move(StatefulPlanner::plan(planFragment(), driver->driverCtx()));
-
   operatorChain_->initialize();
 }
 
@@ -90,7 +86,8 @@ StreamElementPtr StatefulTask::next(int32_t& retCode) {
       } else if (operatorChain_->sourceEmpty()) {
         return nullptr;
       } else {
-        continue;
+        // continue;
+        return nullptr;
       }
     }
     return std::move(popOutput());

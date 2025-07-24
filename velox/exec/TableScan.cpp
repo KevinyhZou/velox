@@ -174,8 +174,8 @@ RowVectorPtr TableScan::getOutput() {
       // at least read one batch from a split to trigger split fetch inside Meta
       // internal data source connector.
       if (data != nullptr && !shouldDropOutput()) {
-        if (data->size() > 0) {
-          lockedStats->addInputVector(data->estimateFlatSize(), data->size());
+        if (data->size() > 0 || (data->size() == 0 && connector_->connectorId() == "connector-kafka")) {
+          // lockedStats->addInputVector(data->estimateFlatSize(), data->size());
           constexpr int kMaxSelectiveBatchSizeMultiplier = 4;
           maxFilteringRatio_ = std::max(
               {maxFilteringRatio_,
@@ -185,8 +185,8 @@ RowVectorPtr TableScan::getOutput() {
             RECORD_HISTOGRAM_METRIC_VALUE(
                 velox::kMetricTableScanBatchProcessTimeMs, ioTimeUs / 1'000);
           }
-          RECORD_HISTOGRAM_METRIC_VALUE(
-              velox::kMetricTableScanBatchBytes, data->estimateFlatSize());
+          // RECORD_HISTOGRAM_METRIC_VALUE(
+          //     velox::kMetricTableScanBatchBytes, data->estimateFlatSize());
           return data;
         }
         continue;
