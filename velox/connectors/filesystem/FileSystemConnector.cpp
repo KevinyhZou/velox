@@ -51,4 +51,20 @@ std::unique_ptr<DataSink> FileSystemConnector::createDataSink(
       insertTableHandle->parititonIndexes(),
       insertTableHandle->partitionKeys());
 }
+
+std::shared_ptr<IndexSource> FileSystemConnector::createIndexSource(
+      const RowTypePtr& inputType,
+      size_t numJoinKeys,
+      const std::vector<std::shared_ptr<core::IndexLookupCondition>>&
+          joinConditions,
+      const RowTypePtr& outputType,
+      const std::shared_ptr<ConnectorTableHandle>& tableHandle,
+      const std::unordered_map<
+          std::string,
+          std::shared_ptr<connector::ColumnHandle>>& columnHandles,
+      ConnectorQueryCtx* connectorQueryCtx) {
+    
+    return nullptr;
+}
+
 } // namespace facebook::velox::connector::filesystem

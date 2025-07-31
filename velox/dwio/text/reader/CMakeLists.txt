@@ -11,14 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+velox_add_library(velox_dwio_text_reader TextReader.cpp)
 
-if(${VELOX_BUILD_TESTING})
-  add_subdirectory(tests)
-endif()
-
-add_subdirectory(writer)
-add_subdirectory(reader)
-
-velox_add_library(velox_dwio_text_writer_register RegisterTextWriter.cpp)
-
-velox_link_libraries(velox_dwio_text_writer_register velox_dwio_text_writer)
+velox_link_libraries(velox_dwio_text_reader velox_dwio_common fmt::fmt)

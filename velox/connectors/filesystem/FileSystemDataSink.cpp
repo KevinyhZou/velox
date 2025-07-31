@@ -64,14 +64,6 @@ std::vector<column_index_t> getNonPartitionChannels(
   return dataChannels;
 }
 
-dwio::common::FileFormat getFileFormat(const std::string& format) {
-  if (format == "csv") {
-    return dwio::common::FileFormat::TEXT;
-  } else {
-    VELOX_UNSUPPORTED("File format {} not supported.", format);
-  }
-}
-
 FileSystemDataSink::FileSystemDataSink(
     const RowTypePtr& inputType,
     const std::shared_ptr<FileSystemInsertTableHandle>& insertTableHandle,
@@ -99,7 +91,7 @@ FileSystemDataSink::FileSystemDataSink(
       dataChannels_(
           getNonPartitionChannels(partitionChannels_, inputType_->size())),
       writerFactory_(dwio::common::getWriterFactory(
-          getFileFormat(writeConfig_->getFormat()))),
+          writeConfig_->getFormat())),
       fileNameGenerator_(std::make_shared<const FsFileNameGenerator>(
           writeConfig_->getFileNamePrefix(),
           writeConfig_->getFileNameSuffix(),

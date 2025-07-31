@@ -16,18 +16,53 @@
 #pragma once
 
 #include "velox/common/config/Config.h"
+#include "velox/dwio/common/Options.h"
 
 namespace facebook::velox::connector::filesystem {
 
 using ConfigPtr = std::shared_ptr<const config::ConfigBase>;
 
-class FileSystemWriteConfig {
- public:
-  FileSystemWriteConfig(const ConfigPtr& config) : config_(config) {}
+class FileSystemConfig {  
+public:
+  FileSystemConfig(const ConfigPtr& config) : config_(config) {}
 
   static constexpr const char* kPath = "path";
-  /// The config key fo format
   static constexpr const char* kFormat = "format";
+
+  const std::string getPath();
+  const dwio::common::FileFormat getFormat();
+
+  const bool exists(const std::string& configKey) {
+    return config_ && config_->valueExists(configKey);
+  }
+
+  const ConfigPtr& config() {
+    return config_;
+  }
+
+  template <typename T>
+  const std::shared_ptr<T> setConfigs(
+      const std::unordered_map<std::string, std::string>& configs) const {
+    std::unordered_map<std::string, std::string> rawConfigs =
+        config_->rawConfigsCopy();
+    rawConfigs.insert(configs.begin(), configs.end());
+    ConfigPtr newConfig =
+        std::make_shared<const config::ConfigBase>(std::move(rawConfigs));
+    return std::make_shared<T>(newConfig);
+  }
+protected:
+  ConfigPtr config_;
+
+  template <typename T, bool throwException>
+  const T checkAndGetConfigValue(const std::string& configKey, T defaultValue)
+      const;
+
+};
+
+class FileSystemWriteConfig : public FileSystemConfig {
+ public:
+  FileSystemWriteConfig(const ConfigPtr& config) : FileSystemConfig(config) {}
+
   static constexpr const char* kFileRollingInterval =
       "sink.rolling-policy.rollover-interval";
   static constexpr const char* kFileRollingSize =
@@ -46,8 +81,6 @@ class FileSystemWriteConfig {
   /// The default value of max partitions per writer.
   static constexpr const int32_t defaultMaxPartitionsPerWriter = 65535;
 
-  const std::string getPath();
-  const std::string getFormat();
   const bool allowNullPartitionKeys() {
     return false;
   }
@@ -72,30 +105,15 @@ class FileSystemWriteConfig {
   const bool flushOnWrite() {
     return true;
   }
-  const bool exists(const std::string& configKey) {
-    return config_ && config_->valueExists(configKey);
-  }
+};
 
-  const ConfigPtr& config() {
-    return config_;
-  }
+class FileSystemReadConfig : public FileSystemConfig {
+public:
+  FileSystemReadConfig(const ConfigPtr& config) : FileSystemConfig(config) {}
+  
+  const char* getFieldDelimiter();
+  const uint64_t getMaxReadRows();
+  const uint64_t getMaxReadBytes();
 
-  template <typename T>
-  const std::shared_ptr<T> setConfigs(
-      const std::unordered_map<std::string, std::string>& configs) const {
-    std::unordered_map<std::string, std::string> rawConfigs =
-        config_->rawConfigsCopy();
-    rawConfigs.insert(configs.begin(), configs.end());
-    ConfigPtr newConfig =
-        std::make_shared<const config::ConfigBase>(std::move(rawConfigs));
-    return std::make_shared<T>(newConfig);
-  }
-
- private:
-  ConfigPtr config_;
-
-  template <typename T, bool throwException>
-  const T checkAndGetConfigValue(const std::string& configKey, T defaultValue)
-      const;
 };
 } // namespace facebook::velox::connector::filesystem

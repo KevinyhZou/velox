@@ -15,11 +15,12 @@
  */
 
 #include "velox/connectors/filesystem/FileSystemConfig.h"
+#include "velox/dwio/common/Options.h"
 
 namespace facebook::velox::connector::filesystem {
 
 template <typename T, bool throwException>
-const T FileSystemWriteConfig::checkAndGetConfigValue(
+const T FileSystemConfig::checkAndGetConfigValue(
     const std::string& configKey,
     T defaultValue) const {
   std::optional<T> configValue =
@@ -38,11 +39,16 @@ const T FileSystemWriteConfig::checkAndGetConfigValue(
   }
 }
 
-const std::string FileSystemWriteConfig::getFormat() {
-  return checkAndGetConfigValue<std::string, false>(kFormat, "");
+const dwio::common::FileFormat FileSystemConfig::getFormat() {
+  std::string format = checkAndGetConfigValue<std::string, false>(kFormat, "");
+  if (format == "csv") {
+    return dwio::common::FileFormat::TEXT;
+  } else {
+    VELOX_UNSUPPORTED("File format {} not supported.", format);
+  }
 }
 
-const std::string FileSystemWriteConfig::getPath() {
+const std::string FileSystemConfig::getPath() {
   return checkAndGetConfigValue<std::string, false>(kPath, "");
 }
 
