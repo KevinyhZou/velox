@@ -162,10 +162,10 @@ std::unique_ptr<dwio::common::RowReader> TextReader::createRowReader(
         *rowReaderOptions);
 }
 
-std::unique_ptr<dwio::common::Reader> TextReaderFcreateReader(
+std::unique_ptr<dwio::common::Reader> TextReaderFactory::createReader(
      std::unique_ptr<dwio::common::BufferedInput> buffer,
      const dwio::common::ReaderOptions& options) {
-    return std::make_unique<TextReader>(buffer, options);
+    return std::make_unique<TextReader>(std::move(buffer), options);
 }
 
 }

@@ -25,24 +25,64 @@ class FileSystemIndexTableHandle : public connector::ConnectorTableHandle {
  public:
   FileSystemIndexTableHandle(
       std::string connectorId,
-      std::shared_ptr<FileSystemIndexTable> indexTable,
-      bool asyncLookup)
+      const std::string& tableName,
+      const RowTypePtr& tableSchema,
+      const std::vector<int32_t>& keyFields,
+      bool asyncLookup = false,
+      const std::unordered_map<std::string, std::string>& tableParameters = {})
       : ConnectorTableHandle(std::move(connectorId)),
-        indexTable_(std::move(indexTable)),
-        asyncLookup_(asyncLookup) {}
+        tableName_(tableName),
+        tableSchema_(tableSchema),
+        keyFields_(keyFields),
+        asyncLookup_(asyncLookup),
+        tableParameters_(tableParameters) {}
 
   ~FileSystemIndexTableHandle() override = default;
 
   std::string toString() const override {
     return fmt::format(
-        "IndexTableHandle: num of rows: {}, asyncLookup: {}",
-        indexTable_ ? indexTable_->table->rows()->numRows() : 0,
-        asyncLookup_);
+        "IndexTableHandle: tableName: {}, tableSchema: {}, asyncLookup: {}",
+        tableName_, tableSchema_->toString(), asyncLookup_);
   }
 
   const std::string& name() const override {
-    static const std::string kTableHandleName{"TestIndexTableHandle"};
-    return kTableHandleName;
+    return tableName_;
+  }
+
+  const RowTypePtr keyType() {
+    std::vector<std::string> keyNames;
+    std::vector<TypePtr> keyTypes;
+    const std::vector<std::string>& fieldNames = tableSchema_->names();
+    for (size_t i = 0; i < keyFields_.size(); ++i) {
+      keyNames.emplace_back(fieldNames[i]);
+      keyTypes.emplace_back(tableSchema_->childAt(i));
+    }
+    return std::make_shared<const RowType>(std::move(keyNames), std::move(keyTypes));
+  }
+
+  const RowTypePtr valueType() {
+    std::vector<std::string> valueNames;
+    std::vector<TypePtr> valueTypes;
+    const std::vector<std::string>& fieldNames = tableSchema_->names();
+    for (int32_t i = 0; i < tableSchema_->children().size(); ++i) {
+      if (std::find(keyFields_.begin(), keyFields_.end(), i) == keyFields_.end()) {
+        valueNames.emplace_back(fieldNames[i]);
+        valueTypes.emplace_back(tableSchema_->childAt(i));
+      }
+    }
+    return std::make_shared<const RowType>(std::move(valueNames), std::move(valueTypes));
+  }
+  
+  const RowTypePtr tableSchema() {
+    return tableSchema_;
+  }
+
+  std::unordered_map<std::string, std::string>& tableParameters() {
+    return tableParameters_;
+  }
+
+  const std::vector<int32_t> keyFields() {
+    return keyFields_;
   }
 
   bool supportsIndexLookup() const override {
@@ -51,28 +91,53 @@ class FileSystemIndexTableHandle : public connector::ConnectorTableHandle {
 
   folly::dynamic serialize() const override {
     folly::dynamic obj = folly::dynamic::object;
-    obj["name"] = name();
+    obj["tableName"] = name();
     obj["connectorId"] = connectorId();
     obj["asyncLookup"] = asyncLookup_;
+    if (tableSchema_) {
+      obj["tableSchema"] = tableSchema_->serialize();
+    }
+    folly::dynamic keyFieldsArray = folly::dynamic::array;
+    for (const auto& keyField : keyFields_) {
+      keyFieldsArray.push_back(keyField);
+    }
+    obj["keyFields"] = keyFieldsArray;
+    folly::dynamic tableParameters = folly::dynamic::object;
+    for (const auto& param : tableParameters_) {
+      tableParameters[param.first] = param.second;
+    }
+    obj["tableParameters"] = tableParameters;
     return obj;
   }
 
   static std::shared_ptr<FileSystemIndexTableHandle> create(
       const folly::dynamic& obj,
       void* context) {
-    // NOTE: this is only for testing purpose so we don't support to serialize
-    // the table.
+    std::string connectorId = obj["connectorId"].asString();
+    std::string tableName = obj["tableName"].asString();
+    bool asyncLookup = obj["asyncLookup"].asBool();
+    std::vector<int32_t> keyFields;
+    const auto keyFieldsArray = obj["keyFields"];
+    for (const auto& item : keyFieldsArray) {
+      keyFields.emplace_back(item.asInt());
+    }
+    RowTypePtr tableSchema;
+    if (auto it = obj.find("tableSchema"); it != obj.items().end()) {
+      tableSchema = ISerializable::deserialize<RowType>(it->second, context);
+    }
+    std::unordered_map<std::string, std::string> tableParameters{};
+    const auto& tableParametersObj = obj["tableParameters"];
+    for (const auto& key : tableParametersObj.keys()) {
+      const auto& value = tableParametersObj[key];
+      tableParameters.emplace(key.asString(), value.asString());
+    }
     return std::make_shared<FileSystemIndexTableHandle>(
-        obj["connectorId"].getString(), nullptr, obj["asyncLookup"].asBool());
+       connectorId, tableName, tableSchema, keyFields, asyncLookup, tableParameters);
   }
 
   static void registerSerDe() {
     auto& registry = DeserializationWithContextRegistryForSharedPtr();
-    registry.Register("TestIndexTableHandle", create);
-  }
-
-  const std::shared_ptr<FileSystemIndexTable>& indexTable() const {
-    return indexTable_;
+    registry.Register("FileSystemIndexTableHandle", create);
   }
 
   /// If true, we returns the lookup result asynchronously for testing purpose.
@@ -81,8 +146,11 @@ class FileSystemIndexTableHandle : public connector::ConnectorTableHandle {
   }
 
  private:
-  const std::shared_ptr<FileSystemIndexTable> indexTable_;
+  const std::string tableName_;
+  const RowTypePtr tableSchema_;
+  const std::vector<int32_t> keyFields_;
   const bool asyncLookup_;
+  std::unordered_map<std::string, std::string> tableParameters_;
 };
 
 }

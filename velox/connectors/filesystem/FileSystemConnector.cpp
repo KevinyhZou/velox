@@ -17,6 +17,10 @@
 #include "velox/connectors/filesystem/FileSystemConnector.h"
 #include "velox/common/config/Config.h"
 #include "velox/connectors/filesystem/FileSystemInsertTableHandle.h"
+#include "velox/connectors/filesystem/FileSystemIndexTableHandle.h"
+#include "velox/connectors/filesystem/FileSystemIndexSource.h"
+
+#include <folly/executors/CPUThreadPoolExecutor.h>
 
 namespace facebook::velox::connector::filesystem {
 
@@ -52,6 +56,48 @@ std::unique_ptr<DataSink> FileSystemConnector::createDataSink(
       insertTableHandle->partitionKeys());
 }
 
+core::TypedExprPtr toLookupJoinConditionExpr(
+    const std::vector<std::shared_ptr<core::IndexLookupCondition>>&
+        joinConditions,
+    const std::shared_ptr<FileSystemIndexTableHandle>& tableHandle,
+    const RowTypePtr& inputType) {
+  if (joinConditions.empty()) {
+    return nullptr;
+  }
+  const auto& keyType = tableHandle->keyType();
+  std::vector<core::TypedExprPtr> conditionExprs;
+  conditionExprs.reserve(joinConditions.size());
+  for (const auto& condition : joinConditions) {
+    auto indexColumnExpr = std::make_shared<core::FieldAccessTypedExpr>(
+        keyType->findChild(condition->key->name()), condition->key->name());
+    if (auto inCondition =
+            std::dynamic_pointer_cast<core::InIndexLookupCondition>(
+                condition)) {
+      conditionExprs.push_back(std::make_shared<const core::CallTypedExpr>(
+          BOOLEAN(),
+          std::vector<core::TypedExprPtr>{
+              inCondition->list, std::move(indexColumnExpr)},
+          "contains"));
+      continue;
+    }
+    if (auto betweenCondition =
+            std::dynamic_pointer_cast<core::BetweenIndexLookupCondition>(
+                condition)) {
+      conditionExprs.push_back(std::make_shared<const core::CallTypedExpr>(
+          BOOLEAN(),
+          std::vector<core::TypedExprPtr>{
+              std::move(indexColumnExpr),
+              betweenCondition->lower,
+              betweenCondition->upper},
+          "between"));
+      continue;
+    }
+    VELOX_FAIL("Invalid index join condition: {}", condition->toString());
+  }
+  return std::make_shared<core::CallTypedExpr>(
+      BOOLEAN(), conditionExprs, "and");
+}
+
 std::shared_ptr<IndexSource> FileSystemConnector::createIndexSource(
       const RowTypePtr& inputType,
       size_t numJoinKeys,
@@ -64,7 +110,21 @@ std::shared_ptr<IndexSource> FileSystemConnector::createIndexSource(
           std::shared_ptr<connector::ColumnHandle>>& columnHandles,
       ConnectorQueryCtx* connectorQueryCtx) {
     
-    return nullptr;
+    const std::shared_ptr<FileSystemIndexTableHandle> fsTableHandle =
+        std::dynamic_pointer_cast<FileSystemIndexTableHandle>(tableHandle);
+
+    std::shared_ptr<folly::Executor> executor;
+    if (fsTableHandle->asyncLookup()) {
+        executor = std::make_shared<folly::CPUThreadPoolExecutor>(1);
+    }
+    return std::make_shared<FileSystemIndexSource>(
+        inputType,
+        outputType,
+        numJoinKeys,
+        toLookupJoinConditionExpr(joinConditions, fsTableHandle, inputType),
+        fsTableHandle,
+        connectorQueryCtx,
+        executor);
 }
 
 } // namespace facebook::velox::connector::filesystem

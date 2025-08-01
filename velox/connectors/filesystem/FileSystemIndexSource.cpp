@@ -33,12 +33,15 @@ FileSystemIndexSource::FileSystemIndexSource(
     const core::TypedExprPtr& joinConditionExpr,
     const std::shared_ptr<FileSystemIndexTableHandle>& tableHandle,
     connector::ConnectorQueryCtx* connectorQueryCtx,
-    folly::Executor* executor)
+    std::shared_ptr<folly::Executor>& executor)
     : tableHandle_(tableHandle),
+      config_(std::make_shared<FileSystemReadConfig>(
+        std::make_shared<const config::ConfigBase>(
+          std::move(tableHandle->tableParameters())))),
       inputType_(inputType),
       outputType_(outputType),
-      keyType_(tableHandle_->indexTable()->keyType),
-      valueType_(tableHandle_->indexTable()->dataType),
+      keyType_(tableHandle_->keyType()),
+      valueType_(tableHandle_->valueType()),
       connectorQueryCtx_(connectorQueryCtx),
       numEqualJoinKeys_(numEqualJoinKeys),
       conditionExprSet_(
@@ -48,7 +51,6 @@ FileSystemIndexSource::FileSystemIndexSource(
               : nullptr),
       pool_(connectorQueryCtx_->memoryPool()->shared_from_this()),
       executor_(executor) {
-  VELOX_CHECK_NOT_NULL(executor_);
   VELOX_CHECK_LE(outputType_->size(), valueType_->size() + keyType_->size());
   VELOX_CHECK_LE(numEqualJoinKeys_, keyType_->size());
   for (int i = 0; i < numEqualJoinKeys_; ++i) {
@@ -106,8 +108,9 @@ void FileSystemIndexSource::initConditionProjections() {
 std::shared_ptr<connector::IndexSource::LookupResultIterator>
 FileSystemIndexSource::lookup(const LookupRequest& request) {
   checkNotFailed();
+  VELOX_CHECK(lookupTable_ != nullptr);
   const auto numInputRows = request.input->size();
-  auto& hashTable = tableHandle_->indexTable()->table;
+  auto& hashTable = lookupTable_->table;
   auto lookup = std::make_unique<exec::HashLookup>(hashTable->hashers(), pool_.get());
   SelectivityVector activeRows(numInputRows);
   VELOX_CHECK(activeRows.isAllSelected());
@@ -127,7 +130,7 @@ FileSystemIndexSource::lookup(const LookupRequest& request) {
       this->shared_from_this(),
       request,
       std::move(lookup),
-      tableHandle_->asyncLookup() ? executor_ : nullptr);
+      tableHandle_->asyncLookup() ? executor_.get() : nullptr);
 }
 
 void FileSystemIndexSource::recordCpuTiming(const CpuWallTiming& timing) {
@@ -231,28 +234,37 @@ void FileSystemIndexSource::initLookupTable() {
   VELOX_CHECK(config_ != nullptr);
   auto fs = filesystems::getFileSystem(config_->getPath(), config_->config());
   VELOX_CHECK(fs != nullptr);
-  const auto readFile = fs->openFileForRead(config_->getPath());
+  std::shared_ptr<ReadFile> readFile = fs->openFileForRead(config_->getPath());
   VELOX_CHECK(readFile != nullptr);
   std::unique_ptr<dwio::common::BufferedInput> input = 
     std::make_unique<dwio::common::BufferedInput>(readFile, *pool_);
-  
+
+  /// current only support text format
   text::RowReaderOptions rowReaderOptions(
     pool_.get(),
     config_->getFieldDelimiter(),
     config_->getMaxReadRows(),
     config_->getMaxReadBytes());
+  rowReaderOptions.setFileFormat(dwio::common::FileFormat::TEXT);
+  rowReaderOptions.setFileSchema(tableHandle_->tableSchema());
+
   auto readerFactory = dwio::common::getReaderFactory(config_->getFormat());
   auto textReader = readerFactory->createReader(std::move(input), rowReaderOptions);
   VELOX_CHECK(textReader != nullptr);
   auto textRowReader = textReader->createRowReader(rowReaderOptions);
   VELOX_CHECK(textRowReader != nullptr);
 
-  RowVectorPtr result;
+  RowVectorPtr result = RowVector::createEmpty(tableHandle_->tableSchema(), pool_.get());
+  std::vector<VectorPtr>& subResults = result->children(); 
   VectorPtr t = nullptr;
   while (textRowReader->next(config_->getMaxReadRows(), t, nullptr) != 0) {
     if (t != nullptr) {
       RowVectorPtr r = std::dynamic_pointer_cast<RowVector>(t);
-      result->append(r.get());
+      std::vector<VectorPtr>& rs = r->children();
+      VELOX_CHECK(subResults.size() == rs.size());
+      for (size_t i = 0; i < subResults.size(); ++i) {
+        subResults[i]->append(rs[i].get());
+      }
     }
     t = nullptr;
   }

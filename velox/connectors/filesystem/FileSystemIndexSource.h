@@ -38,7 +38,7 @@ class FileSystemIndexSource : public connector::IndexSource, public std::enable_
       const core::TypedExprPtr& joinConditionExpr,
       const std::shared_ptr<FileSystemIndexTableHandle>& tableHandle,
       connector::ConnectorQueryCtx* connectorQueryCtx,
-      folly::Executor* executor);
+      std::shared_ptr<folly::Executor>& executor);
 
   std::shared_ptr<LookupResultIterator> lookup(
       const LookupRequest& request) override;
@@ -50,7 +50,7 @@ class FileSystemIndexSource : public connector::IndexSource, public std::enable_
   }
 
   const std::shared_ptr<FileSystemIndexTable>& indexTable() const {
-    return tableHandle_->indexTable();
+    return lookupTable_;
   }
 
   const RowTypePtr& outputType() const {
@@ -162,10 +162,10 @@ class FileSystemIndexSource : public connector::IndexSource, public std::enable_
     const RowVectorPtr& keyData,
     const RowVectorPtr& valueData
   );
-  
-  const std::shared_ptr<FileSystemReadConfig> config_;
+
   std::shared_ptr<FileSystemIndexTable> lookupTable_;
   const std::shared_ptr<FileSystemIndexTableHandle> tableHandle_;
+  const std::shared_ptr<FileSystemReadConfig> config_;
   const RowTypePtr inputType_;
   const RowTypePtr outputType_;
   const RowTypePtr keyType_;
@@ -174,7 +174,7 @@ class FileSystemIndexSource : public connector::IndexSource, public std::enable_
   const size_t numEqualJoinKeys_;
   const std::unique_ptr<exec::ExprSet> conditionExprSet_;
   const std::shared_ptr<memory::MemoryPool> pool_;
-  folly::Executor* const executor_;
+  std::shared_ptr<folly::Executor> executor_;
 
   mutable std::mutex mutex_;
 

@@ -103,7 +103,9 @@ public:
   TextReader(
     std::unique_ptr<dwio::common::BufferedInput> buffer,
     const dwio::common::ReaderOptions& options)
-    : buffer_(std::move(buffer)), options_(options) {
+    : buffer_(std::move(buffer)),
+    options_(options),
+    typeId_(dwio::common::TypeWithId::create(options_.fileSchema())) {
     VELOX_CHECK(options_.fileFormat() == dwio::common::FileFormat::TEXT);
   }
 
@@ -122,9 +124,7 @@ public:
   }
 
   const std::shared_ptr<const dwio::common::TypeWithId>& typeWithId() const override {
-    std::unique_ptr<dwio::common::TypeWithId> typeId =
-         dwio::common::TypeWithId::create(options_.fileSchema());
-    return std::make_shared<const dwio::common::TypeWithId>(*typeId);
+    return typeId_;
   }
 
   std::unique_ptr<dwio::common::RowReader> createRowReader(
@@ -132,6 +132,7 @@ public:
 private:
     const std::unique_ptr<dwio::common::BufferedInput> buffer_;
     const dwio::common::ReaderOptions options_;
+    const std::shared_ptr<const dwio::common::TypeWithId> typeId_;
 };
 
 class TextReaderFactory : public dwio::common::ReaderFactory {

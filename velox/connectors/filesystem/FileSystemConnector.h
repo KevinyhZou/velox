@@ -36,7 +36,7 @@ class FileSystemConnector : public Connector {
           columnHandles,
       ConnectorQueryCtx* connectorQueryCtx) override;
 
-   std::shared_ptr<IndexSource> createIndexSource(
+  std::shared_ptr<IndexSource> createIndexSource(
       const RowTypePtr& inputType,
       size_t numJoinKeys,
       const std::vector<std::shared_ptr<core::IndexLookupCondition>>&

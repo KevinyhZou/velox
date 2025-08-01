@@ -110,6 +110,15 @@ class FileSystemWriteConfig : public FileSystemConfig {
 class FileSystemReadConfig : public FileSystemConfig {
 public:
   FileSystemReadConfig(const ConfigPtr& config) : FileSystemConfig(config) {}
+
+  static constexpr const char* kTextFormatFieldDelimiter =
+      "csv.field.delimiter";
+  static constexpr const char* kMaxReadRows = "max.read.rows";
+  static constexpr const char* kMaxReadBytes = "max.read.bytes";
+  
+  static constexpr const char* defaultTextFormatFieldDelimiter = ",";
+  static constexpr const uint64_t defaultMaxReadRows = 10000;
+  static constexpr const uint64_t defaultMaxReadBytes = 128 * 1024 * 1024;
   
   const char* getFieldDelimiter();
   const uint64_t getMaxReadRows();
