@@ -23,6 +23,7 @@
 #include <boost/algorithm/string.hpp>
 #include <folly/Try.h>
 #include <typeinfo>
+#include <iostream>
 
 namespace facebook::velox::text {
 
@@ -46,13 +47,14 @@ uint64_t TextRowReader::next(uint64_t size, velox::VectorPtr& result, const dwio
         result = RowVector::create(schema_, size, &options_.memoryPool());
     }
     RowVectorPtr row = std::dynamic_pointer_cast<RowVector>(result);
-    uint64_t readLength = options_.maxReadSize();
-    char* dataToRead;
-    fileInput_->read(dataToRead, totalReadBytes_ + 1, readLength, dwio::common::MetricsLog::MetricsType::FILE);
-    std::string_view s(dataToRead, readLength);
+    char dataToRead[1024];
+    fileInput_->read(dataToRead, 1024, totalReadBytes_, dwio::common::MetricsLog::MetricsType::FILE);
+    std::string_view s(dataToRead, 1024);
+    std::cout << "dataRead here:" << s << std::endl;
     std::vector<std::string> lines;
     boost::split(lines, s, boost::is_any_of(lineDelimiter_));
     
+    std::cout << "next 333" << std::endl;
     auto readFields = [&](RowVectorPtr& rowVector, const std::string& line, const size_t rowIndex) -> void {
         std::vector<std::string> fields;
         boost::split(fields, line, boost::is_any_of(options_.fieldDemiliter()));
@@ -71,6 +73,7 @@ uint64_t TextRowReader::next(uint64_t size, velox::VectorPtr& result, const dwio
         readFields(row, lines[0], 0);
         readRows_ = 1;
     }
+    std::cout << "next 4444" << std::endl;
     return readRows_;
 }
 
@@ -86,10 +89,11 @@ template<typename T>
 const inline T convertTo(const std::string& s, const T& defaultValue, std::optional<std::string>& errMsg) {
     auto result = folly::tryTo<T>(s);
     if (result.hasValue()) {
+        std::cout << "yes result has value:" << s << std::endl;
         return result.value();
     } else {
         std::stringstream ss;
-        ss << "Failed to convert:" << s << " to type:" << typeid(T).name();
+        ss << "Failed to convert " << s << " to type:" << typeid(T).name();
         errMsg.emplace(ss.str());
         return defaultValue;
     }
@@ -155,7 +159,7 @@ std::optional<size_t> TextRowReader::estimatedRowSize() const {
 
 std::unique_ptr<dwio::common::RowReader> TextReader::createRowReader(
     const dwio::common::RowReaderOptions& options) const {
-    const RowReaderOptions* rowReaderOptions = reinterpret_cast<const RowReaderOptions*>(&options);
+    const RowReaderOptions* rowReaderOptions = static_cast<const RowReaderOptions*>(&options);
     return std::make_unique<TextRowReader>(
         options_.fileSchema(),
         buffer_->getInputStream(),

@@ -16,7 +16,6 @@
 #pragma once
 
 #include "velox/connectors/Connector.h"
-#include "velox/connectors/filesystem/FileSystemIndexTable.h"
 #include <fmt/format.h>
 
 namespace facebook::velox::connector::filesystem {

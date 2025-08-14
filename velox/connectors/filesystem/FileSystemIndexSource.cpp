@@ -23,6 +23,7 @@
 #include "velox/dwio/common/BufferedInput.h"
 #include "velox/dwio/text/reader/TextReader.h"
 #include "velox/expression/FieldReference.h"
+#include <iostream>
 
 namespace facebook::velox::connector::filesystem {
 
@@ -269,6 +270,8 @@ void FileSystemIndexSource::initLookupTable() {
     t = nullptr;
   }
 
+  std::cout << "init lookup 333" << std::endl;
+
   if (result != nullptr) {
     VELOX_CHECK(keyType_ != nullptr);
     VELOX_CHECK(valueType_ != nullptr);
@@ -284,6 +287,7 @@ void FileSystemIndexSource::initLookupTable() {
       std::make_shared<RowVector>(result->pool(), keyType_, nullptr, result->size(), keys),
       std::make_shared<RowVector>(result->pool(), valueType_, nullptr, result->size(), values));
   }
+  std::cout << "init lookup 444" << std::endl;
 }
 
 FileSystemIndexSource::ResultIterator::ResultIterator(
