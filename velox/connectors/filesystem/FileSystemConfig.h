@@ -118,9 +118,9 @@ public:
   
   static constexpr const char* defaultTextFormatFieldDelimiter = ",";
   static constexpr const uint64_t defaultMaxReadRows = 10000;
-  static constexpr const uint64_t defaultMaxReadBytes = 128 * 1024 * 1024;
+  static constexpr const uint64_t defaultMaxReadBytes = 1024;
   
-  const char* getFieldDelimiter();
+  const std::string getFieldDelimiter();
   const uint64_t getMaxReadRows();
   const uint64_t getMaxReadBytes();
 

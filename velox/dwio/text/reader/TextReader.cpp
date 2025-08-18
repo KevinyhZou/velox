@@ -36,44 +36,51 @@ options_(options),
 fileInput_(fileInput),
 fileSize_(fileInput_->getReadFile()->size()) {}
 
-uint64_t TextRowReader::next(uint64_t size, velox::VectorPtr& result, const dwio::common::Mutation*) {
+uint64_t TextRowReader::next(uint64_t maxRowsToRead, velox::VectorPtr& result, const dwio::common::Mutation*) {
     if (totalReadBytes_ >= fileSize_) {
         readFinished_ = true;
         readRows_ = 0;
         return 0;
     }
     VELOX_CHECK(fileInput_ != nullptr);
-    if (result == nullptr) {
-        result = RowVector::create(schema_, size, &options_.memoryPool());
+    size_t sizeToRead = options_.maxReadSize();
+    if (fileSize_ - totalReadBytes_ < sizeToRead) {
+        sizeToRead = fileSize_ - totalReadBytes_;
     }
-    RowVectorPtr row = std::dynamic_pointer_cast<RowVector>(result);
-    char dataToRead[1024];
-    fileInput_->read(dataToRead, 1024, totalReadBytes_, dwio::common::MetricsLog::MetricsType::FILE);
-    std::string_view s(dataToRead, 1024);
-    std::cout << "dataRead here:" << s << std::endl;
+    std::vector<char> dataToRead(sizeToRead);
+    fileInput_->read(dataToRead.data(), sizeToRead, totalReadBytes_, dwio::common::MetricsLog::MetricsType::FILE);
+    std::string_view s(dataToRead.data(), 1024);
+    const size_t lastLineDelimiterPos = s.rfind(lineDelimiter_);
+    if (lastLineDelimiterPos != std::string::npos) {
+        s = s.substr(0,lastLineDelimiterPos + 1);
+    }
     std::vector<std::string> lines;
     boost::split(lines, s, boost::is_any_of(lineDelimiter_));
-    
-    std::cout << "next 333" << std::endl;
     auto readFields = [&](RowVectorPtr& rowVector, const std::string& line, const size_t rowIndex) -> void {
         std::vector<std::string> fields;
         boost::split(fields, line, boost::is_any_of(options_.fieldDemiliter()));
+        VELOX_CHECK(fields.size() == rowVector->childrenSize());
         for (size_t j = 0; j < fields.size(); ++j) {
             deserialize(rowVector->childAt(j), schema_->childAt(j), rowIndex, fields[j]);
         }
     };
-    if (lines.size() > 1) {
-        for (size_t i = 0; i < lines.size() - 1; ++i) {
+    RowVectorPtr row = std::dynamic_pointer_cast<RowVector>(result);
+    const size_t rowsToRead = maxRowsToRead > lines.size() - 1 ? lines.size() - 1 : maxRowsToRead;
+    row->resize(rowsToRead);
+    /// TODO: Combine the implemention of read one line and multiple lines.
+    if (rowsToRead > 0) {
+        for (size_t i = 0; i < rowsToRead; ++i) {
             readFields(row, lines[i], i);
             totalReadRows_++;
-            totalReadBytes_ += lines[i].size();
+            totalReadBytes_ += lines[i].size() + 1;
         }
         readRows_ = lines.size() - 1;
     } else if (lines.size() == 1) {
         readFields(row, lines[0], 0);
+        totalReadRows_ ++;
+        totalReadBytes_ += lines[0].size() + 1;
         readRows_ = 1;
     }
-    std::cout << "next 4444" << std::endl;
     return readRows_;
 }
 
@@ -89,7 +96,6 @@ template<typename T>
 const inline T convertTo(const std::string& s, const T& defaultValue, std::optional<std::string>& errMsg) {
     auto result = folly::tryTo<T>(s);
     if (result.hasValue()) {
-        std::cout << "yes result has value:" << s << std::endl;
         return result.value();
     } else {
         std::stringstream ss;

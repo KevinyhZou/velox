@@ -119,9 +119,9 @@ const int32_t FileSystemWriteConfig::getFileRollingSize() {
   }
 }
 
-const char* FileSystemReadConfig::getFieldDelimiter() {
+const std::string FileSystemReadConfig::getFieldDelimiter() {
   return checkAndGetConfigValue<std::string, false>(
-    kTextFormatFieldDelimiter, defaultTextFormatFieldDelimiter).data();
+    kTextFormatFieldDelimiter, defaultTextFormatFieldDelimiter);
 }
 
 const uint64_t FileSystemReadConfig::getMaxReadRows() {

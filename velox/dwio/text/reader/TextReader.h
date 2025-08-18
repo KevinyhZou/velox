@@ -25,9 +25,6 @@
 #include "velox/dwio/common/BufferedInput.h"
 #include "velox/dwio/common/TypeWithId.h"
 #include "velox/dwio/common/Statistics.h"
-#include "velox/common/config/Config.h"
-#include "velox/common/file/FileSystems.h"
-#include "velox/common/memory/Memory.h"
 #include "velox/type/Type.h"
 #include "velox/vector/BaseVector.h"
 
@@ -70,7 +67,7 @@ public:
     const RowReaderOptions& options);
 
   uint64_t next(
-      uint64_t size,
+      uint64_t maxRowsToRead,
       velox::VectorPtr& result,
       const dwio::common::Mutation* mutation = nullptr) override;
 
@@ -78,7 +75,7 @@ public:
 
   int64_t nextReadSize(uint64_t size) override;
 
-  void updateRuntimeStats(dwio::common::RuntimeStatistics& stats) const {}
+  void updateRuntimeStats(dwio::common::RuntimeStatistics& stats) const override {}
 
   void resetFilterCaches() override {}
 

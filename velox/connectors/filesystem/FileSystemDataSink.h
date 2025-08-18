@@ -21,11 +21,8 @@
 #include "velox/connectors/filesystem/FileSystemInsertTableHandle.h"
 #include "velox/connectors/hive/HiveDataSink.h"
 #include "velox/connectors/hive/PartitionIdGenerator.h"
-#include "velox/dwio/common/FileSink.h"
-
-#include <iostream>
-#include "boost/algorithm/string.hpp"
-#include "folly/container/F14Map.h"
+#include <boost/algorithm/string.hpp>
+#include <folly/container/F14Map.h>
 
 namespace facebook::velox::connector::filesystem {
 

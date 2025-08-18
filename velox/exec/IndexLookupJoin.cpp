@@ -420,13 +420,12 @@ void IndexLookupJoin::addInput(RowVectorPtr input) {
   startLookup(batch);
 }
 
-RowVectorPtr IndexLookupJoin::getOutput() {
+RowVectorPtr IndexLookupJoin::getOutputInternal() {
   SCOPE_EXIT {
     if (numInputBatches() == 0 && isDraining()) {
       finishDrain();
     }
   };
-
   auto& batch = currentInputBatch();
   if (batch.empty()) {
     return nullptr;
@@ -441,6 +440,22 @@ RowVectorPtr IndexLookupJoin::getOutput() {
   }
   if (output->size() == 0) {
     return nullptr;
+  }
+  return output;
+}
+
+RowVectorPtr IndexLookupJoin::getOutput() {
+  RowVectorPtr output = nullptr;
+  while(true) {
+    RowVectorPtr t = getOutputInternal();
+    if (t == nullptr) {
+      break;
+    }
+    if (output == nullptr) {
+      output = t;
+    } else {
+      output->append(t.get());
+    }
   }
   return output;
 }
@@ -506,6 +521,7 @@ RowVectorPtr IndexLookupJoin::getOutputFromLookupResult(
       if (hasRemainingOutputForLeftJoin(batch)) {
         return produceRemainingOutputForLeftJoin(batch);
       }
+
       finishInput(batch);
       return nullptr;
     }
