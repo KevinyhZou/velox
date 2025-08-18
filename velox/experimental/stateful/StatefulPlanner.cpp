@@ -51,8 +51,10 @@
 #include "velox/experimental/stateful/StreamJoin.h"
 #include "velox/experimental/stateful/WatermarkAssigner.h"
 #include "velox/experimental/stateful/TimeWindow.h"
+#include "velox/experimental/stateful/StreamLookupJoin.h"
 
 #include <iostream>
+#include <memory>
 
 namespace facebook::velox::stateful {
 
@@ -93,7 +95,10 @@ StatefulOperatorPtr StatefulPlanner::nodeToStatefulOperator(
         std::move(op),
         partitionNode->partition()->partitionFunctionSpec(),
         numPartitions);
-  } else if (auto timeWindowNode = 
+  } else if (auto indexLookupJoinNode = 
+      std::dynamic_pointer_cast<const core::IndexLookupJoinNode>(statefulNode->node())) {
+    return std::make_unique<StreamLookupJoin>(std::move(op), std::move(targets));
+  } else if (auto timeWindowNode =
       std::dynamic_pointer_cast<const TimeWindowNode>(statefulNode->node())){
     TimeWindowNode::WindowType type = timeWindowNode->type();
     TimeWindowNode::WindowParameters parameters = timeWindowNode->parameters();

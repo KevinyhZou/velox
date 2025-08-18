@@ -126,8 +126,6 @@ class IndexLookupJoin : public Operator {
   void startLookupBlockWait();
   void endLookupBlockWait();
 
-  RowVectorPtr getOutputInternal();
-
   RowVectorPtr getOutputFromLookupResult(InputBatchState& batch);
   RowVectorPtr produceOutputForInnerJoin(const InputBatchState& batch);
   RowVectorPtr produceOutputForLeftJoin(const InputBatchState& batch);

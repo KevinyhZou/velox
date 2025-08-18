@@ -15,7 +15,6 @@
  */
 #pragma once
 
-#include "velox/exec/Operator.h"
 #include "velox/exec/Task.h"
 #include "velox/experimental/stateful/StatefulOperator.h"
 #include "velox/experimental/stateful/StreamElement.h"

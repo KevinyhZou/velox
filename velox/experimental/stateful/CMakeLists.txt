@@ -22,7 +22,8 @@ velox_add_library(
   StreamPartition.cpp
   StreamJoin.cpp
   WatermarkAssigner.cpp
-  TimeWindow.cpp)
+  TimeWindow.cpp
+  StreamLookupJoin.cpp)
 
 velox_link_libraries(
   velox_stateful_exec
