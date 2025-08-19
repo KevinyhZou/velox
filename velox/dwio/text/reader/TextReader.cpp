@@ -49,7 +49,7 @@ uint64_t TextRowReader::next(uint64_t maxRowsToRead, velox::VectorPtr& result, c
     }
     std::vector<char> dataToRead(sizeToRead);
     fileInput_->read(dataToRead.data(), sizeToRead, totalReadBytes_, dwio::common::MetricsLog::MetricsType::FILE);
-    std::string_view s(dataToRead.data(), 1024);
+    std::string_view s(dataToRead.data(), sizeToRead);
     const size_t lastLineDelimiterPos = s.rfind(lineDelimiter_);
     if (lastLineDelimiterPos != std::string::npos) {
         s = s.substr(0,lastLineDelimiterPos + 1);
