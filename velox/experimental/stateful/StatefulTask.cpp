@@ -15,8 +15,6 @@
  */
 #include "velox/experimental/stateful/StatefulPlanner.h"
 #include "velox/experimental/stateful/StatefulTask.h"
-#include "velox/exec/OperatorUtils.h"
-#include "velox/exec/OperatorStats.h"
 
 namespace facebook::velox::stateful {
 
@@ -98,16 +96,6 @@ StreamElementPtr StatefulTask::next(int32_t& retCode) {
 
 void StatefulTask::addOutput(StreamElementPtr output) {
   pendings_.push_back(std::move(output));
-}
-
-exec::TaskStats StatefulTask::statefulTaskStats() {
-  exec::TaskStats taskStats;
-  auto statsCopy = operatorChain_->op()->stats(false);
-  exec::aggregateOperatorRuntimeStats(statsCopy.runtimeStats);
-  exec::PipelineStats pipelineStats(false, false);
-  pipelineStats.operatorStats.emplace_back(statsCopy);
-  taskStats.pipelineStats.emplace_back(pipelineStats);
-  return taskStats;
 }
 
 void StatefulTask::notifyWatermark(long watermark, int index) {

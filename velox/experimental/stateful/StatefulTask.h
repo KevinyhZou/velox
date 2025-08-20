@@ -62,9 +62,6 @@ class StatefulTask : public exec::Task {
   // The task is finished, close all operators and reset driver
   void finish();
 
-  // get stats for stateful task.
-  exec::TaskStats statefulTaskStats();
-
   // Task commit when checkpoint completed.
   void commit(int64_t id);
 

@@ -67,7 +67,6 @@ void StatefulPlanNode::registerSerDe() {
   registry.Register("EmptyNode", EmptyNode::create);
   registry.Register("StreamJoinNode", StreamJoinNode::create);
   registry.Register("StreamPartitionNode", StreamPartitionNode::create);
-  registry.Register("TimeWindowNode", TimeWindowNode::create);
 }
 
 const std::vector<core::PlanNodePtr>& WatermarkAssignerNode::sources() const {
@@ -172,52 +171,6 @@ folly::dynamic EmptyNode::serialize() const {
 core::PlanNodePtr EmptyNode::create(const folly::dynamic& obj, void* context) {
   auto outputType = ISerializable::deserialize<RowType>(obj["outputType"]);
   return std::make_shared<const EmptyNode>(outputType);
-}
-
-folly::dynamic TimeWindowNode::serialize() const {
-  auto obj = core::WindowNode::serialize();
-  obj["type"] = static_cast<int>(type_);
-  folly::dynamic parameters = folly::dynamic::object();
-  parameters["windowSize"] = params_.windowSize;
-  parameters["offset"] = params_.offset;
-  parameters["slidingSize"] = params_.slidingSize;
-  parameters["gapSize"] = params_.gapSize;
-  parameters["isEventTime"] = params_.isEventTime;
-  parameters["timeFieldIndex"] = params_.timeFieldIndex;
-  obj["parameters"] = parameters;
-  return obj;
-}
-
-core::PlanNodePtr TimeWindowNode::create(const folly::dynamic& obj, void* context) {
-  auto sources = ISerializable::deserialize<std::vector<PlanNode>>(
-        obj["sources"], context);
-  VELOX_CHECK_EQ(1, sources.size());
-  auto source = sources[0];
-  auto partitionKeys = ISerializable::deserialize<std::vector<core::FieldAccessTypedExpr>>(
-    obj["partitionKeys"], context);
-  std::vector<Function> functions;
-  for (const auto& function : obj["functions"]) {
-    functions.push_back(core::WindowNode::Function::deserialize(function));
-  }
-  auto windowNames = ISerializable::deserialize<std::vector<std::string>>(obj["names"]);
-  auto windowParameters = obj["parameters"];
-  TimeWindowNode::WindowParameters params;
-  params.windowSize = windowParameters["windowSize"].asInt();
-  params.offset = windowParameters["offset"].asInt();
-  params.slidingSize = windowParameters["slidingSize"].asInt();
-  params.gapSize = windowParameters["gapSize"].asInt();
-  params.isEventTime = windowParameters["isEventTime"].asBool();
-  params.timeFieldIndex = windowParameters["timeFieldIndex"].asInt();
-  auto res = std::make_shared<TimeWindowNode>(
-      obj["id"].asString(),
-      partitionKeys,
-      windowNames,
-      functions,
-      source,
-      static_cast<TimeWindowNode::WindowType>(obj["type"].asInt()),
-      params
-  );
-  return res;
 }
 
 } // namespace facebook::velox::stateful

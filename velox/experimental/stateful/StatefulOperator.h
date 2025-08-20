@@ -45,13 +45,13 @@ class StatefulOperator {
 
   virtual void processWatermark(long timestamp, int index);
 
-  std::unique_ptr<exec::Operator>& op() {
-    return operator_;
-  }
-
  protected:
   void pushOutput(RowVectorPtr output);
   void pushWatermark(long timestamp, int index);
+
+  std::unique_ptr<exec::Operator>& op() {
+    return operator_;
+  }
 
  private:
   bool isSink() {
