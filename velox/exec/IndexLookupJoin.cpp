@@ -426,6 +426,7 @@ RowVectorPtr IndexLookupJoin::getOutput() {
       finishDrain();
     }
   };
+
   auto& batch = currentInputBatch();
   if (batch.empty()) {
     return nullptr;
@@ -505,7 +506,6 @@ RowVectorPtr IndexLookupJoin::getOutputFromLookupResult(
       if (hasRemainingOutputForLeftJoin(batch)) {
         return produceRemainingOutputForLeftJoin(batch);
       }
-
       finishInput(batch);
       return nullptr;
     }

@@ -23,7 +23,6 @@
 #include <boost/algorithm/string.hpp>
 #include <folly/Try.h>
 #include <typeinfo>
-#include <iostream>
 
 namespace facebook::velox::text {
 
