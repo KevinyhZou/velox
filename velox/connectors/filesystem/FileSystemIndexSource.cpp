@@ -18,13 +18,13 @@
 #include <connectors/Connector.h>
 #include <vector/ComplexVector.h>
 #include <vector/TypeAliases.h>
-#include "velox/exec/VectorHasher.h"
-#include "velox/exec/OperatorUtils.h"
-#include "velox/exec/IndexLookupJoin.h"
 #include "velox/common/memory/RawVector.h"
-#include "velox/dwio/common/ReaderFactory.h"
 #include "velox/dwio/common/BufferedInput.h"
+#include "velox/dwio/common/ReaderFactory.h"
 #include "velox/dwio/text/reader/TextReader.h"
+#include "velox/exec/IndexLookupJoin.h"
+#include "velox/exec/OperatorUtils.h"
+#include "velox/exec/VectorHasher.h"
 #include "velox/expression/FieldReference.h"
 
 namespace facebook::velox::connector::filesystem {
@@ -39,8 +39,8 @@ FileSystemIndexSource::FileSystemIndexSource(
     std::shared_ptr<folly::Executor>& executor)
     : tableHandle_(tableHandle),
       config_(std::make_shared<FileSystemReadConfig>(
-        std::make_shared<const config::ConfigBase>(
-          std::move(tableHandle->tableParameters())))),
+          std::make_shared<const config::ConfigBase>(
+              std::move(tableHandle->tableParameters())))),
       inputType_(inputType),
       outputType_(outputType),
       keyType_(tableHandle_->keyType()),
@@ -114,7 +114,8 @@ FileSystemIndexSource::lookup(const LookupRequest& request) {
   VELOX_CHECK(lookupTable_ != nullptr);
   const auto numInputRows = request.input->size();
   auto& hashTable = lookupTable_->table;
-  auto lookup = std::make_unique<exec::HashLookup>(hashTable->hashers(), pool_.get());
+  auto lookup =
+      std::make_unique<exec::HashLookup>(hashTable->hashers(), pool_.get());
   SelectivityVector activeRows(numInputRows);
   VELOX_CHECK(activeRows.isAllSelected());
   hashTable->prepareForJoinProbe(
@@ -163,19 +164,22 @@ void FileSystemIndexSource::checkNotFailed() {
   }
 }
 
-std::unordered_map<std::string, RuntimeMetric> FileSystemIndexSource::runtimeStats() {
+std::unordered_map<std::string, RuntimeMetric>
+FileSystemIndexSource::runtimeStats() {
   std::lock_guard<std::mutex> l(mutex_);
   return runtimeStats_;
 }
 
-const std::shared_ptr<FileSystemIndexTable> FileSystemIndexSource::createIndexTable(int numEqualJoinKeys,
-  const RowVectorPtr& keyData, const RowVectorPtr & valueData) {
-  
-  const auto keyType = std::dynamic_pointer_cast<const RowType>(keyData->type());
+const std::shared_ptr<FileSystemIndexTable>
+FileSystemIndexSource::createIndexTable(
+    int numEqualJoinKeys,
+    const RowVectorPtr& keyData,
+    const RowVectorPtr& valueData) {
+  const auto keyType =
+      std::dynamic_pointer_cast<const RowType>(keyData->type());
   VELOX_CHECK_GE(keyType->size(), 1);
   VELOX_CHECK_GE(keyType->size(), numEqualJoinKeys);
-  auto valueType =
-      std::dynamic_pointer_cast<const RowType>(valueData->type());
+  auto valueType = std::dynamic_pointer_cast<const RowType>(valueData->type());
   VELOX_CHECK_GE(valueType->size(), 1);
   const auto numRows = keyData->size();
   VELOX_CHECK_EQ(numRows, valueData->size());
@@ -185,7 +189,8 @@ const std::shared_ptr<FileSystemIndexTable> FileSystemIndexSource::createIndexTa
   std::vector<VectorPtr> keyVectors;
   keyVectors.reserve(numEqualJoinKeys);
   for (auto i = 0; i < numEqualJoinKeys; ++i) {
-    hashers.push_back(std::make_unique<exec::VectorHasher>(keyType->childAt(i), i));
+    hashers.push_back(
+        std::make_unique<exec::VectorHasher>(keyType->childAt(i), i));
     keyVectors.push_back(keyData->childAt(i));
   }
 
@@ -228,7 +233,8 @@ const std::shared_ptr<FileSystemIndexTable> FileSystemIndexSource::createIndexTa
   }
 
   // Build the table index.
-  table->prepareJoinTable({}, exec::BaseHashTable::kNoSpillInputStartPartitionBit);
+  table->prepareJoinTable(
+      {}, exec::BaseHashTable::kNoSpillInputStartPartitionBit);
   return std::make_shared<FileSystemIndexTable>(
       std::move(keyType), std::move(valueType), std::move(table));
 }
@@ -239,26 +245,29 @@ void FileSystemIndexSource::initLookupTable() {
   VELOX_CHECK(fs != nullptr);
   std::shared_ptr<ReadFile> readFile = fs->openFileForRead(config_->getPath());
   VELOX_CHECK(readFile != nullptr);
-  std::unique_ptr<dwio::common::BufferedInput> input = 
-    std::make_unique<dwio::common::BufferedInput>(readFile, *pool_);
+  std::unique_ptr<dwio::common::BufferedInput> input =
+      std::make_unique<dwio::common::BufferedInput>(readFile, *pool_);
 
   /// current only support text format
   text::RowReaderOptions rowReaderOptions(
-    pool_.get(),
-    config_->getFieldDelimiter().data(),
-    config_->getMaxReadRows(),
-    config_->getMaxReadBytes());
+      pool_.get(),
+      config_->getFieldDelimiter().data(),
+      config_->getMaxReadRows(),
+      config_->getMaxReadBytes());
   rowReaderOptions.setFileFormat(dwio::common::FileFormat::TEXT);
   rowReaderOptions.setFileSchema(tableHandle_->tableSchema());
 
   auto readerFactory = dwio::common::getReaderFactory(config_->getFormat());
-  auto textReader = readerFactory->createReader(std::move(input), rowReaderOptions);
+  auto textReader =
+      readerFactory->createReader(std::move(input), rowReaderOptions);
   VELOX_CHECK(textReader != nullptr);
   auto textRowReader = textReader->createRowReader(rowReaderOptions);
   VELOX_CHECK(textRowReader != nullptr);
 
-  RowVectorPtr rows = RowVector::createEmpty(tableHandle_->tableSchema(), pool_.get());
-  VectorPtr t = RowVector::createEmpty(tableHandle_->tableSchema(), pool_.get());
+  RowVectorPtr rows =
+      RowVector::createEmpty(tableHandle_->tableSchema(), pool_.get());
+  VectorPtr t =
+      RowVector::createEmpty(tableHandle_->tableSchema(), pool_.get());
   while (textRowReader->next(config_->getMaxReadRows(), t, nullptr) != 0) {
     RowVectorPtr r = std::dynamic_pointer_cast<RowVector>(t);
     VELOX_CHECK(r->childrenSize() == rows->childrenSize());
@@ -276,9 +285,12 @@ void FileSystemIndexSource::initLookupTable() {
     for (const auto& name : valueType_->names()) {
       values.emplace_back(rows->childAt(name));
     }
-    lookupTable_ = createIndexTable(numEqualJoinKeys_, 
-      std::make_shared<RowVector>(rows->pool(), keyType_, nullptr, rows->size(), keys),
-      std::make_shared<RowVector>(rows->pool(), valueType_, nullptr, rows->size(), values));
+    lookupTable_ = createIndexTable(
+        numEqualJoinKeys_,
+        std::make_shared<RowVector>(
+            rows->pool(), keyType_, nullptr, rows->size(), keys),
+        std::make_shared<RowVector>(
+            rows->pool(), valueType_, nullptr, rows->size(), values));
   }
 }
 
@@ -446,7 +458,7 @@ FileSystemIndexSource::ResultIterator::syncLookup(vector_size_t size) {
     VELOX_CHECK_EQ(inputHitIndices_->size() / sizeof(vector_size_t), numHits);
     if (lookupOutput_->size() == 0) {
       return nullptr;
-    }  else {
+    } else {
       return std::make_unique<LookupResult>(inputHitIndices_, lookupOutput_);
     }
   } catch (const std::exception& e) {
@@ -509,4 +521,4 @@ RowVectorPtr FileSystemIndexSource::ResultIterator::createConditionInput() {
       std::move(filterColumns));
 }
 
-}
+} // namespace facebook::velox::connector::filesystem

@@ -16,9 +16,9 @@
 
 #include "velox/connectors/filesystem/FileSystemConnector.h"
 #include "velox/common/config/Config.h"
-#include "velox/connectors/filesystem/FileSystemInsertTableHandle.h"
-#include "velox/connectors/filesystem/FileSystemIndexTableHandle.h"
 #include "velox/connectors/filesystem/FileSystemIndexSource.h"
+#include "velox/connectors/filesystem/FileSystemIndexTableHandle.h"
+#include "velox/connectors/filesystem/FileSystemInsertTableHandle.h"
 
 #include <folly/executors/CPUThreadPoolExecutor.h>
 
@@ -99,32 +99,31 @@ core::TypedExprPtr toLookupJoinConditionExpr(
 }
 
 std::shared_ptr<IndexSource> FileSystemConnector::createIndexSource(
-      const RowTypePtr& inputType,
-      size_t numJoinKeys,
-      const std::vector<std::shared_ptr<core::IndexLookupCondition>>&
-          joinConditions,
-      const RowTypePtr& outputType,
-      const std::shared_ptr<ConnectorTableHandle>& tableHandle,
-      const std::unordered_map<
-          std::string,
-          std::shared_ptr<connector::ColumnHandle>>& columnHandles,
-      ConnectorQueryCtx* connectorQueryCtx) {
-    
-    const std::shared_ptr<FileSystemIndexTableHandle> fsTableHandle =
-        std::dynamic_pointer_cast<FileSystemIndexTableHandle>(tableHandle);
+    const RowTypePtr& inputType,
+    size_t numJoinKeys,
+    const std::vector<std::shared_ptr<core::IndexLookupCondition>>&
+        joinConditions,
+    const RowTypePtr& outputType,
+    const std::shared_ptr<ConnectorTableHandle>& tableHandle,
+    const std::unordered_map<
+        std::string,
+        std::shared_ptr<connector::ColumnHandle>>& columnHandles,
+    ConnectorQueryCtx* connectorQueryCtx) {
+  const std::shared_ptr<FileSystemIndexTableHandle> fsTableHandle =
+      std::dynamic_pointer_cast<FileSystemIndexTableHandle>(tableHandle);
 
-    std::shared_ptr<folly::Executor> executor;
-    if (fsTableHandle->asyncLookup()) {
-        executor = std::make_shared<folly::CPUThreadPoolExecutor>(1);
-    }
-    return std::make_shared<FileSystemIndexSource>(
-        inputType,
-        outputType,
-        numJoinKeys,
-        toLookupJoinConditionExpr(joinConditions, fsTableHandle, inputType),
-        fsTableHandle,
-        connectorQueryCtx,
-        executor);
+  std::shared_ptr<folly::Executor> executor;
+  if (fsTableHandle->asyncLookup()) {
+    executor = std::make_shared<folly::CPUThreadPoolExecutor>(1);
+  }
+  return std::make_shared<FileSystemIndexSource>(
+      inputType,
+      outputType,
+      numJoinKeys,
+      toLookupJoinConditionExpr(joinConditions, fsTableHandle, inputType),
+      fsTableHandle,
+      connectorQueryCtx,
+      executor);
 }
 
 } // namespace facebook::velox::connector::filesystem

@@ -90,8 +90,7 @@ FileSystemDataSink::FileSystemDataSink(
               : nullptr),
       dataChannels_(
           getNonPartitionChannels(partitionChannels_, inputType_->size())),
-      writerFactory_(dwio::common::getWriterFactory(
-          writeConfig_->getFormat())),
+      writerFactory_(dwio::common::getWriterFactory(writeConfig_->getFormat())),
       fileNameGenerator_(std::make_shared<const FsFileNameGenerator>(
           writeConfig_->getFileNamePrefix(),
           writeConfig_->getFileNameSuffix(),

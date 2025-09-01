@@ -15,8 +15,8 @@
  */
 #pragma once
 
-#include "velox/connectors/Connector.h"
 #include <fmt/format.h>
+#include "velox/connectors/Connector.h"
 
 namespace facebook::velox::connector::filesystem {
 
@@ -41,7 +41,9 @@ class FileSystemIndexTableHandle : public connector::ConnectorTableHandle {
   std::string toString() const override {
     return fmt::format(
         "IndexTableHandle: tableName: {}, tableSchema: {}, asyncLookup: {}",
-        tableName_, tableSchema_->toString(), asyncLookup_);
+        tableName_,
+        tableSchema_->toString(),
+        asyncLookup_);
   }
 
   const std::string& name() const override {
@@ -56,7 +58,8 @@ class FileSystemIndexTableHandle : public connector::ConnectorTableHandle {
       keyNames.emplace_back(fieldNames[i]);
       keyTypes.emplace_back(tableSchema_->childAt(i));
     }
-    return std::make_shared<const RowType>(std::move(keyNames), std::move(keyTypes));
+    return std::make_shared<const RowType>(
+        std::move(keyNames), std::move(keyTypes));
   }
 
   const RowTypePtr valueType() {
@@ -64,14 +67,16 @@ class FileSystemIndexTableHandle : public connector::ConnectorTableHandle {
     std::vector<TypePtr> valueTypes;
     const std::vector<std::string>& fieldNames = tableSchema_->names();
     for (int32_t i = 0; i < tableSchema_->children().size(); ++i) {
-      if (std::find(keyFields_.begin(), keyFields_.end(), i) == keyFields_.end()) {
+      if (std::find(keyFields_.begin(), keyFields_.end(), i) ==
+          keyFields_.end()) {
         valueNames.emplace_back(fieldNames[i]);
         valueTypes.emplace_back(tableSchema_->childAt(i));
       }
     }
-    return std::make_shared<const RowType>(std::move(valueNames), std::move(valueTypes));
+    return std::make_shared<const RowType>(
+        std::move(valueNames), std::move(valueTypes));
   }
-  
+
   const RowTypePtr tableSchema() {
     return tableSchema_;
   }
@@ -131,7 +136,12 @@ class FileSystemIndexTableHandle : public connector::ConnectorTableHandle {
       tableParameters.emplace(key.asString(), value.asString());
     }
     return std::make_shared<FileSystemIndexTableHandle>(
-       connectorId, tableName, tableSchema, keyFields, asyncLookup, tableParameters);
+        connectorId,
+        tableName,
+        tableSchema,
+        keyFields,
+        asyncLookup,
+        tableParameters);
   }
 
   static void registerSerDe() {
@@ -152,4 +162,4 @@ class FileSystemIndexTableHandle : public connector::ConnectorTableHandle {
   std::unordered_map<std::string, std::string> tableParameters_;
 };
 
-}
+} // namespace facebook::velox::connector::filesystem

@@ -15,9 +15,9 @@
  */
 #pragma once
 
+#include "velox/exec/HashTable.h"
 #include "velox/type/Type.h"
 #include "velox/vector/ComplexVector.h"
-#include "velox/exec/HashTable.h"
 
 namespace facebook::velox::connector::filesystem {
 
@@ -35,4 +35,4 @@ struct FileSystemIndexTable {
         table(std::move(_table)) {}
 };
 
-}
+} // namespace facebook::velox::connector::filesystem

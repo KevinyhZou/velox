@@ -16,11 +16,11 @@
 
 #pragma once
 
-#include "velox/dwio/common/Reader.h"
 #include "velox/connectors/Connector.h"
 #include "velox/connectors/filesystem/FileSystemConfig.h"
 #include "velox/connectors/filesystem/FileSystemIndexTable.h"
 #include "velox/connectors/filesystem/FileSystemIndexTableHandle.h"
+#include "velox/dwio/common/Reader.h"
 #include "velox/exec/HashTable.h"
 #include "velox/exec/Operator.h"
 #include "velox/expression/Expr.h"
@@ -29,7 +29,9 @@
 
 namespace facebook::velox::connector::filesystem {
 
-class FileSystemIndexSource : public connector::IndexSource, public std::enable_shared_from_this<FileSystemIndexSource> {
+class FileSystemIndexSource
+    : public connector::IndexSource,
+      public std::enable_shared_from_this<FileSystemIndexSource> {
  public:
   FileSystemIndexSource(
       const RowTypePtr& inputType,
@@ -90,8 +92,8 @@ class FileSystemIndexSource : public connector::IndexSource, public std::enable_
     // Check if a given equality matched 'row' has passed join conditions.
     inline bool joinConditionPassed(vector_size_t row) const {
       return source_->conditionFilterInputRows_.isValid(row) &&
-          !source_->decodedConditionFilterResult_.isNullAt(row) &&
-          source_->decodedConditionFilterResult_.valueAt<bool>(row);
+             !source_->decodedConditionFilterResult_.isNullAt(row) &&
+             source_->decodedConditionFilterResult_.valueAt<bool>(row);
     }
 
     // Creates input vector for join condition evaluation.
@@ -158,10 +160,9 @@ class FileSystemIndexSource : public connector::IndexSource, public std::enable_
   void recordCpuTiming(const CpuWallTiming& timing);
 
   const std::shared_ptr<FileSystemIndexTable> createIndexTable(
-    int numEqualJoinKeys,
-    const RowVectorPtr& keyData,
-    const RowVectorPtr& valueData
-  );
+      int numEqualJoinKeys,
+      const RowVectorPtr& keyData,
+      const RowVectorPtr& valueData);
 
   std::shared_ptr<FileSystemIndexTable> lookupTable_;
   const std::shared_ptr<FileSystemIndexTableHandle> tableHandle_;
@@ -194,4 +195,4 @@ class FileSystemIndexSource : public connector::IndexSource, public std::enable_
   std::vector<exec::IdentityProjection> lookupOutputProjections_;
   std::unordered_map<std::string, RuntimeMetric> runtimeStats_;
 };
-}
+} // namespace facebook::velox::connector::filesystem

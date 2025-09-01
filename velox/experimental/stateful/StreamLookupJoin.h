@@ -20,15 +20,15 @@
 namespace facebook::velox::stateful {
 
 class StreamLookupJoin : public StatefulOperator {
-public:
-    StreamLookupJoin(
-        std::unique_ptr<exec::Operator> op,
-        std::vector<std::unique_ptr<StatefulOperator>> targets
-    ) : StatefulOperator(std::move(op), std::move(targets)) {}
+ public:
+  StreamLookupJoin(
+      std::unique_ptr<exec::Operator> op,
+      std::vector<std::unique_ptr<StatefulOperator>> targets)
+      : StatefulOperator(std::move(op), std::move(targets)) {}
 
-    void addInput(RowVectorPtr input) override;
+  void addInput(RowVectorPtr input) override;
 
-    void getOutput() override;
+  void getOutput() override;
 };
 
-}
+} // namespace facebook::velox::stateful

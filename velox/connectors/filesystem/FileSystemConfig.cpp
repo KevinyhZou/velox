@@ -121,15 +121,17 @@ const int32_t FileSystemWriteConfig::getFileRollingSize() {
 
 const std::string FileSystemReadConfig::getFieldDelimiter() {
   return checkAndGetConfigValue<std::string, false>(
-    kTextFormatFieldDelimiter, defaultTextFormatFieldDelimiter);
+      kTextFormatFieldDelimiter, defaultTextFormatFieldDelimiter);
 }
 
 const uint64_t FileSystemReadConfig::getMaxReadRows() {
-  return checkAndGetConfigValue<uint64_t, false>(kMaxReadRows, defaultMaxReadRows);
+  return checkAndGetConfigValue<uint64_t, false>(
+      kMaxReadRows, defaultMaxReadRows);
 }
 
 const uint64_t FileSystemReadConfig::getMaxReadBytes() {
-  return checkAndGetConfigValue<uint64_t, false>(kMaxReadBytes, defaultMaxReadBytes);
+  return checkAndGetConfigValue<uint64_t, false>(
+      kMaxReadBytes, defaultMaxReadBytes);
 }
 
 } // namespace facebook::velox::connector::filesystem

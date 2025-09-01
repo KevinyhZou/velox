@@ -15,27 +15,26 @@
  */
 #pragma once
 
+#include <folly/dynamic.h>
 #include "velox/connectors/hive/TableHandle.h"
 #include "velox/type/Subfield.h"
-#include <folly/dynamic.h>
 
 namespace facebook::velox::connector::filesystem {
 class FileSystemColumnHandle : public hive::HiveColumnHandle {
-public:
-    FileSystemColumnHandle(
+ public:
+  FileSystemColumnHandle(
       const std::string& name,
       ColumnType columnType,
       TypePtr dataType,
-      std::vector<common::Subfield> requiredSubfields = {}
-    ) : hive::HiveColumnHandle(name, columnType, dataType, dataType, {}, {}) {}
-  
-    std::string toString() const;
+      std::vector<common::Subfield> requiredSubfields = {})
+      : hive::HiveColumnHandle(name, columnType, dataType, dataType, {}, {}) {}
 
-    folly::dynamic serialize() const override;
+  std::string toString() const;
 
-    static ColumnHandlePtr create(const folly::dynamic& obj);
+  folly::dynamic serialize() const override;
 
-    static void registerSerDe();
+  static ColumnHandlePtr create(const folly::dynamic& obj);
 
+  static void registerSerDe();
 };
-}
+} // namespace facebook::velox::connector::filesystem

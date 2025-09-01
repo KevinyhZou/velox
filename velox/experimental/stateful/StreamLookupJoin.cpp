@@ -19,24 +19,24 @@
 namespace facebook::velox::stateful {
 
 void StreamLookupJoin::addInput(RowVectorPtr input) {
-    op()->addInput(input);
+  op()->addInput(input);
 }
 
 void StreamLookupJoin::getOutput() {
   RowVectorPtr output = nullptr;
-  while(true) {
-        RowVectorPtr t = op()->getOutput();
-        if (t == nullptr) {
-            break;
-        }
-        if (output == nullptr) {
-            output = t;
-        } else {
-            output->append(t.get());
-        }
+  while (true) {
+    RowVectorPtr t = op()->getOutput();
+    if (t == nullptr) {
+      break;
     }
-    if (output != nullptr) {
-        pushOutput(output);
+    if (output == nullptr) {
+      output = t;
+    } else {
+      output->append(t.get());
     }
+  }
+  if (output != nullptr) {
+    pushOutput(output);
+  }
 }
-}
+} // namespace facebook::velox::stateful
