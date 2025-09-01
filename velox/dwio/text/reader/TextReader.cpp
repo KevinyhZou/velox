@@ -93,6 +93,11 @@ int64_t TextRowReader::nextReadSize(uint64_t size) {
 
 template<typename T>
 const inline T convertTo(const std::string& s, const T& defaultValue, std::optional<std::string>& errMsg) {
+    if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>) {
+        if (s == "NaN") {
+            return std::numeric_limits<T>::quiet_NaN();
+        }
+    }
     auto result = folly::tryTo<T>(s);
     if (result.hasValue()) {
         return result.value();

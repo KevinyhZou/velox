@@ -22,10 +22,6 @@ add_test(
 target_link_libraries(
   velox_text_reader_test
   velox_dwio_text_reader
-  velox_dwio_common_test_utils
-  velox_link_libs
-  Boost::regex
-  Folly::folly
-  ${TEST_LINK_LIBS}
-  GTest::gtest
-  fmt::fmt)
+  velox_vector_test_lib
+  velox_exec_test_lib
+  GTest::gtest)
