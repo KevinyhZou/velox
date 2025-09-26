@@ -17,7 +17,6 @@
 
 #include "velox/exec/FilterProject.h"
 #include "velox/experimental/stateful/StatefulOperator.h"
-#include "velox/experimental/stateful/StatefulPlanNode.h"
 
 namespace facebook::velox::stateful {
 

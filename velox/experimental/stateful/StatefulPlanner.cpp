@@ -52,7 +52,6 @@
 #include "velox/experimental/stateful/StreamPartition.h"
 #include "velox/experimental/stateful/StreamJoin.h"
 #include "velox/experimental/stateful/WatermarkAssigner.h"
-#include "velox/experimental/stateful/TimeWindow.h"
 #include "velox/experimental/stateful/WindowAggregator.h"
 #include "velox/experimental/stateful/WindowJoin.h"
 #include "velox/experimental/stateful/GroupWindowAggregator.h"
@@ -62,7 +61,6 @@
 #include "velox/experimental/stateful/rank/AppendOnlyTopNRanker.h"
 #include "velox/experimental/stateful/agg/AggsHandleFunction.h"
 #include "velox/experimental/stateful/agg/GroupAggregator.h"
->>>>>>> gluten-0530
 
 namespace facebook::velox::stateful {
 
