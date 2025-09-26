@@ -16,6 +16,9 @@
 #pragma once
 
 #include "velox/exec/Operator.h"
+#include "velox/experimental/stateful/CombinedWatermarkStatus.h"
+#include "velox/experimental/stateful/state/StateBackend.h"
+#include "velox/experimental/stateful/state/StreamOperatorStateHandler.h"
 
 namespace facebook::velox::stateful {
 
@@ -43,14 +46,48 @@ class StatefulOperator {
 
   virtual void close();
 
-  virtual void processWatermark(long timestamp, int index);
+  void processWatermark(long timestamp, int index);
+
+  void initializeState(StateBackend* stateBackend);
+
+  void snapshotState();
+
+  void notifyCheckpointComplete(long checkpointId);
+
+  void notifyCheckpointAborted(long checkpointId);
+
+  StreamOperatorStateHandlerPtr stateHandler() const {
+    return stateHandler_;
+  }
+
+  const std::string detail() const {
+    std::stringstream stream;
+    stream << "StatefulOperator: " << name() << "\n";
+    for (size_t i = 0; i < targets_.size(); ++i) {
+      stream << "\tTarget " << i << ": " << targets_[i]->detail() << "\n";
+    }
+    return stream.str();
+  }
+
+  virtual std::string name() const {
+    return operator_->operatorType();
+  }
+
+  std::unique_ptr<exec::Operator>& op() {
+    return operator_;
+  }
+
+  std::vector<std::unique_ptr<StatefulOperator>>& targets() {
+    return targets_;
+  }
 
  protected:
   void pushOutput(RowVectorPtr output);
   void pushWatermark(long timestamp, int index);
+  virtual void processWatermarkInternal(long timestamp) {}
 
-  std::unique_ptr<exec::Operator>& op() {
-    return operator_;
+  virtual int numInputs() const {
+    return 1;
   }
 
  private:
@@ -62,6 +99,8 @@ class StatefulOperator {
   std::vector<std::unique_ptr<StatefulOperator>> targets_;
   bool sink;
   bool sourceEmpty_ = true;
+  std::shared_ptr<CombinedWatermarkStatus> combinedWatermarkStatus_;
+  StreamOperatorStateHandlerPtr stateHandler_;
 };
 
 using StatefulOperatorPtr = std::unique_ptr<StatefulOperator>;

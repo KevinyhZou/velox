@@ -28,15 +28,15 @@ class StreamPartition : public StatefulOperator {
       const core::PartitionFunctionSpec& partitionFunctionSpec,
       int numPartitions);
 
-  void initialize() override;
-
   bool isFinished() override;
 
   void addInput(RowVectorPtr input) override;
 
   void getOutput() override;
 
-  void close() override;
+  std::string name() const override {
+    return "StreamPartition";
+  }
 
  private:
   void pushToTask(StreamElementPtr output);

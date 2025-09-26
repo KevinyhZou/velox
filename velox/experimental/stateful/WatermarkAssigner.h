@@ -36,6 +36,10 @@ class WatermarkAssigner : public StatefulOperator {
 
   void getOutput() override;
 
+  std::string name() const override {
+    return "WatermarkAssigner";
+  }
+
  private:
   void advanceWatermark();
 
