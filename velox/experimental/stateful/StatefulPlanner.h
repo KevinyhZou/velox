@@ -17,6 +17,7 @@
 
 #include "velox/exec/Operator.h"
 #include "velox/experimental/stateful/StatefulOperator.h"
+#include "velox/experimental/stateful/state/StateBackend.h"
 
 namespace facebook::velox::core {
 struct PlanFragment;
@@ -30,12 +31,14 @@ class StatefulPlanner {
   // Create stateful operator chain according to plan.
   static StatefulOperatorPtr plan(
       const core::PlanFragment& planFragment,
-      exec::DriverCtx* ctx);
+      exec::DriverCtx* ctx,
+      StateBackend* stateBackend);
 
  private:
   static std::unique_ptr<StatefulOperator> nodeToStatefulOperator(
       const core::PlanNodePtr& planNode,
-      exec::DriverCtx* ctx);
+      exec::DriverCtx* ctx,
+      StateBackend* stateBackend);
 
   static std::unique_ptr<exec::Operator> nodeToOperator(
       const core::PlanNodePtr& planNode,

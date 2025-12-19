@@ -15,53 +15,57 @@
  */
 #pragma once
 
-#include "velox/exec/NestedLoopJoinBuild.h"
 #include "velox/exec/NestedLoopJoinProbe.h"
-#include "velox/exec/Operator.h"
+#include "velox/experimental/stateful/KeySelector.h"
+#include "velox/experimental/stateful/StatefulOperator.h"
 #include "velox/experimental/stateful/StatefulPlanNode.h"
+#include "velox/experimental/stateful/join/JoinRecordStateView.h"
 
 namespace facebook::velox::stateful {
 
-class StreamJoin : public exec::Operator {
+class StreamJoin : public StatefulOperator {
  public:
-  StreamJoin( 
-    int32_t operatorId,
-    exec::DriverCtx* driverCtx,
-    const std::shared_ptr<const StreamJoinNode>& joinNode,
-    std::unique_ptr<exec::Operator> leftInput,
-    std::unique_ptr<exec::Operator> rightInput,
-    std::unique_ptr<exec::Operator> build,
-    std::unique_ptr<exec::Operator> probe);
+  StreamJoin(
+      std::unique_ptr<exec::Operator> leftInput,
+      std::unique_ptr<exec::Operator> rightInput,
+      std::unique_ptr<KeySelector> leftKeySelector,
+      std::unique_ptr<KeySelector> rightKeySelector,
+      std::unique_ptr<exec::Operator> probe,
+      std::vector<std::unique_ptr<StatefulOperator>> targets);
 
   void initialize() override;
 
-  bool needsInput() const override {
-    VELOX_NYI();
-  }
-
   bool isFinished() override;
-
-  void traceInput(const RowVectorPtr& input) override;
 
   void addInput(RowVectorPtr input) override;
 
-  RowVectorPtr getOutput() override;
-
-  void noMoreInput() override {
-    VELOX_NYI();
-  }
-
-  exec::BlockingReason isBlocked(ContinueFuture* future) override {
-    VELOX_NYI();
-  }
+  void getOutput() override;
 
   void close() override;
 
+  std::string name() const override {
+    return "StreamJoin";
+  }
+
+ protected:
+  int numInputs() const override {
+    return 2;
+  }
+
  private:
+  RowVectorPtr join(
+      uint32_t key,
+      RowVectorPtr input,
+      const JoinRecordStateViewPtr& otherSideStateView,
+      bool inputIsLeft);
+
   const std::unique_ptr<exec::Operator> leftInput_;
   const std::unique_ptr<exec::Operator> rightInput_;
-  const std::unique_ptr<exec::NestedLoopJoinBuild> build_;
-  const std::unique_ptr<exec::NestedLoopJoinProbe> probe_;
+  const std::unique_ptr<KeySelector> leftKeySelector_;
+  const std::unique_ptr<KeySelector> rightKeySelector_;
+  exec::NestedLoopJoinProbe* probe_;
+  JoinRecordStateViewPtr leftRecordStateView_;
+  JoinRecordStateViewPtr rightRecordStateView_;
 };
 
 } // namespace facebook::velox::stateful

@@ -28,7 +28,9 @@ FileSystemInsertTableHandle::FileSystemInsertTableHandle(
       dataColumns_(dataColumns),
       partitionIndexes_(partitionIndexes),
       partitionKeys_(partitionKeys),
-      tableParameters_(tableParameters) {}
+      tableParameters_(tableParameters) {
+    VELOX_CHECK(partitionKeys_.size() == partitionIndexes_.size(), "Partition keys' size must euqals to Partition indexes' size");
+  }
 
 std::string FileSystemInsertTableHandle::toString() const {
   std::stringstream out;
@@ -37,23 +39,15 @@ std::string FileSystemInsertTableHandle::toString() const {
     out << ", data columns: " << dataColumns_->toString();
   }
   if (!partitionIndexes_.empty()) {
-    out << ", partition indexes: ";
-    for (const auto& pIndex : partitionIndexes_) {
-      out << pIndex << " ";
-    }
+    out << ", partition indexes: " << folly::join(", ", partitionIndexes_);
   }
   if (!partitionKeys_.empty()) {
-    out << ", partition keys: ";
-    for (const auto& pKey : partitionKeys_) {
-      out << pKey << " ";
-    }
+    out << ", partition keys: " << folly::join(", ", partitionKeys_);
   }
   if (!tableParameters_.empty()) {
-    std::map<std::string, std::string> orderedTableParameters{
-        tableParameters_.begin(), tableParameters_.end()};
     out << ", table parameters: [";
     bool firstParam = true;
-    for (const auto& param : orderedTableParameters) {
+    for (const auto& param : tableParameters_) {
       if (!firstParam) {
         out << ", ";
       }
@@ -112,10 +106,12 @@ ConnectorInsertTableHandlePtr FileSystemInsertTableHandle::create(
     }
   }
   std::unordered_map<std::string, std::string> tableParameters{};
-  const auto& tableParametersObj = obj["tableParameters"];
-  for (const auto& key : tableParametersObj.keys()) {
-    const auto& value = tableParametersObj[key];
-    tableParameters.emplace(key.asString(), value.asString());
+  if (auto it = obj.find("tableParameters"); it != obj.items().end()) {
+    const auto& tableParametersObj = obj["tableParameters"];
+    for (const auto& key : tableParametersObj.keys()) {
+      const auto& value = tableParametersObj[key];
+      tableParameters.emplace(key.asString(), value.asString());
+    }
   }
   return std::make_shared<const FileSystemInsertTableHandle>(
       tableName, dataColumns, partitionIndexes, partitionKeys, tableParameters);
@@ -127,3 +123,4 @@ void FileSystemInsertTableHandle::registerSerDe() {
 }
 
 } // namespace facebook::velox::connector::filesystem
+

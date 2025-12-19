@@ -71,4 +71,6 @@ class FileSystemInsertTableHandle : public ConnectorInsertTableHandle {
   const std::vector<std::string> partitionKeys_;
   const std::unordered_map<std::string, std::string> tableParameters_;
 };
+
 } // namespace facebook::velox::connector::filesystem
+

@@ -20,16 +20,16 @@
 namespace facebook::velox::connector::filesystem {
 
 template <typename T, bool throwException>
-const T FileSystemConfig::checkAndGetConfigValue(
+const T FileSystemWriteConfig::checkAndGetConfigValue(
     const std::string& configKey,
-    T defaultValue) const {
+    const T& defaultValue) const {
   std::optional<T> configValue =
       static_cast<std::optional<T>>(config_->get<T>(configKey));
   if constexpr (throwException) {
     VELOX_CHECK_EQ(
         configValue.has_value(),
         true,
-        "Kafka config {} has no specified value.",
+        "FileSystem config {} has no specified value.",
         configKey);
   }
   if (configValue.has_value()) {
@@ -39,16 +39,16 @@ const T FileSystemConfig::checkAndGetConfigValue(
   }
 }
 
-const dwio::common::FileFormat FileSystemConfig::getFormat() {
-  std::string format = checkAndGetConfigValue<std::string, false>(kFormat, "");
-  if (format == "csv") {
-    return dwio::common::FileFormat::TEXT;
+const dwio::common::FileFormat FileSystemWriteConfig::getFormat() {
+  const std::string format = checkAndGetConfigValue<std::string, false>(kFormat, "");
+  if (supportedFileFormats.find(format) != supportedFileFormats.end()) {
+    return supportedFileFormats.at(format);
   } else {
-    VELOX_UNSUPPORTED("File format {} not supported.", format);
+    VELOX_FAIL("Format {} not supported for filesystem sink.", format);
   }
 }
 
-const std::string FileSystemConfig::getPath() {
+const std::string FileSystemWriteConfig::getPath() {
   return checkAndGetConfigValue<std::string, false>(kPath, "");
 }
 
@@ -57,18 +57,6 @@ const int32_t FileSystemWriteConfig::getFileRollingIntervalMinutes() {
       checkAndGetConfigValue<std::string, false>(kFileRollingInterval, "1min");
   const std::string intVal = configVal.substr(0, configVal.size() - 3);
   return std::stoi(intVal);
-}
-
-const std::string FileSystemWriteConfig::getFileNamePrefix() {
-  return checkAndGetConfigValue<std::string, false>(kFileNamePrefix, "");
-}
-
-const std::string FileSystemWriteConfig::getFileNameSuffix() {
-  return checkAndGetConfigValue<std::string, false>(kFileNameSuffix, "");
-}
-
-const std::string FileSystemWriteConfig::getTaskId() {
-  return checkAndGetConfigValue<std::string, false>(kTaskId, "0");
 }
 
 const std::string FileSystemWriteConfig::getPartitionCommitTrigger() {

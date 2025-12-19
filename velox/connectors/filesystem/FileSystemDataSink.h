@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <optional>
 #include "velox/common/file/FileSystems.h"
 #include "velox/connectors/Connector.h"
 #include "velox/connectors/filesystem/FileSystemConfig.h"
@@ -29,13 +30,12 @@ namespace facebook::velox::connector::filesystem {
 using FileSystemWriteConfigPtr = std::shared_ptr<FileSystemWriteConfig>;
 using InsertTableHandlePtr =
     std::shared_ptr<connector::ConnectorInsertTableHandle>;
+using MemoryPoolPtr = std::shared_ptr<memory::MemoryPool>;
 
 class FsWriterId : public hive::HiveWriterId {
  public:
-  FsWriterId(
-      std::optional<uint32_t> _partitionId,
-      std::optional<uint32_t> _bucketId = std::nullopt)
-      : hive::HiveWriterId(_partitionId, _bucketId) {}
+  FsWriterId(std::optional<uint32_t> _partitionId)
+      : hive::HiveWriterId(_partitionId, std::nullopt) {}
 };
 
 struct FsWriterIdHasher : public hive::HiveWriterIdHasher {};
@@ -56,12 +56,12 @@ struct FsWriterParameters : public hive::HiveWriterParameters {
             writeFileName,
             writeDirectory) {}
 };
+
 struct FsWriterInfo : public hive::HiveWriterInfo {
- public:
   FsWriterInfo(
       FsWriterParameters parameters,
-      std::shared_ptr<memory::MemoryPool> _writerPool,
-      std::shared_ptr<memory::MemoryPool> _sinkPool,
+      MemoryPoolPtr _writerPool,
+      MemoryPoolPtr _sinkPool,
       const time_t createTime)
       : hive::HiveWriterInfo(parameters, _writerPool, _sinkPool, nullptr),
         createTime_(createTime) {}
@@ -80,7 +80,7 @@ struct FsWriterInfo : public hive::HiveWriterInfo {
     committed_ = committed;
   }
 
-  bool getCommitted() {
+  bool isCommitted() {
     return committed_;
   }
 
@@ -88,6 +88,8 @@ struct FsWriterInfo : public hive::HiveWriterInfo {
   const time_t createTime_;
   bool committed_ = false;
 };
+
+using FsWriterInfoPtr = std::shared_ptr<FsWriterInfo>;
 
 class FsFileNameGenerator {
  public:
@@ -111,7 +113,7 @@ class FsPartitionIdGenerator : public hive::PartitionIdGenerator {
   FsPartitionIdGenerator(
       const RowTypePtr& inputType,
       std::vector<column_index_t> partitionChannels,
-      std::vector<std::string> partitionKeys,
+      const std::vector<std::string>& partitionKeys,
       uint32_t maxPartitions,
       memory::MemoryPool* pool,
       bool partitionPathAsLowerCase)
@@ -200,10 +202,10 @@ class FileSystemDataSink : public DataSink {
 
   connector::DataSink::Stats stats() const override;
 
-  void commit(int64_t id) override;
+  std::vector<std::string> commit(int64_t id) override;
 
   // For test.
-  const std::vector<std::shared_ptr<FsWriterInfo>>& getWriteInfos() {
+  const std::vector<FsWriterInfoPtr>& getWriteInfos() {
     return writerInfo_;
   }
 
@@ -222,6 +224,7 @@ class FileSystemDataSink : public DataSink {
   const std::shared_ptr<FileSystemInsertTableHandle> insertTableHandle_;
   const ConnectorQueryCtx* queryCtx_;
   const FileSystemWriteConfigPtr writeConfig_;
+  const std::unordered_map<std::string, dwio::common::FileFormat> fileFormats_;
 
   // Below are structures for partitions from all inputs. writerInfo_ and
   // writers_ are both indexed by partitionId.
@@ -239,8 +242,8 @@ class FileSystemDataSink : public DataSink {
   folly::F14FastMap<FsWriterId, uint32_t, FsWriterIdHasher, FsWriterIdEq>
       writerIndexMap_;
 
-  std::vector<std::shared_ptr<FsWriterInfo>> writerInfo_;
-  std::vector<std::shared_ptr<FsWriterInfo>> pendingWriterInfo_;
+  std::vector<FsWriterInfoPtr> writerInfo_;
+  std::vector<FsWriterInfoPtr> pendingWriterInfo_;
   std::vector<std::unique_ptr<dwio::common::Writer>> writers_;
   // IO statistics collected for each writer.
   std::vector<std::shared_ptr<io::IoStatistics>> ioStats_;
@@ -257,17 +260,13 @@ class FileSystemDataSink : public DataSink {
   std::shared_ptr<filesystems::FileSystem> fs_;
 
   void write(size_t index, RowVectorPtr input);
-  // Compute the partition id and bucket id for each row in 'input'.
-  void computePartitionAndBucketIds(const RowVectorPtr& input);
-  // Computes the number of input rows as well as the actual input row indices
-  // to each corresponding (bucketed) partition based on the partition and
-  // bucket ids calculated by 'computePartitionAndBucketIds'. The function also
-  // ensures that there is a writer created for each (bucketed) partition.
+  // Compute the partition id for each row in 'input'.
+  void computePartitionIds(const RowVectorPtr& input);
   void splitInputRowsAndEnsureWriters();
 
   const std::unique_ptr<dwio::common::Writer> createWriter(
       const std::string& writePath,
-      const std::shared_ptr<FsWriterInfo>& writeInfo,
+      const FsWriterInfoPtr& writeInfo,
       const std::shared_ptr<io::IoStatistics>& ioStats);
 
   // Appends a new writer for the given 'id'. The function returns the index of
@@ -286,11 +285,6 @@ class FileSystemDataSink : public DataSink {
     return partitionIdGenerator_ != nullptr;
   }
 
-  // Returns true if the table is bucketed.
-  FOLLY_ALWAYS_INLINE bool isBucketed() const {
-    return false;
-  }
-
   // Makes sure to create one writer for the given writer id. The function
   // returns the corresponding index in 'writers_'.
   uint32_t ensureWriter(const FsWriterId& id);
@@ -300,15 +294,13 @@ class FileSystemDataSink : public DataSink {
   // write file and target file has the same name. If not, add a temp file
   // prefix to the target file for write file name. The coordinator (or driver
   // for Presto on spark) will rename the write file to target file to commit
-  // the table write when update the metadata store. If it is a bucketed table,
-  // the file name encodes the corresponding bucket id.
+  // the table write when update the metadata store.
   const std::pair<std::string, std::string> getWriterFileNames() const;
 
   FsWriterParameters getWriterParameters(
       const std::optional<std::string>& partition) const;
 
-  // Get the HiveWriter corresponding to the row
-  // from partitionIds and bucketIds.
+  // Get the HiveWriter corresponding to the row from partitionIds.
   FOLLY_ALWAYS_INLINE FsWriterId getWriterId(size_t row) const;
 
   // Validates the state transition from 'oldState' to 'newState'.
@@ -325,3 +317,4 @@ class FileSystemDataSink : public DataSink {
 };
 
 } // namespace facebook::velox::connector::filesystem
+

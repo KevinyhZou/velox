@@ -19,8 +19,8 @@
 #include "velox/connectors/filesystem/FileSystemIndexSource.h"
 #include "velox/connectors/filesystem/FileSystemIndexTableHandle.h"
 #include "velox/connectors/filesystem/FileSystemInsertTableHandle.h"
-
 #include <folly/executors/CPUThreadPoolExecutor.h>
+#include "velox/connectors/filesystem/FileSystemDataSink.h"
 
 namespace facebook::velox::connector::filesystem {
 
@@ -43,10 +43,10 @@ std::unique_ptr<DataSink> FileSystemConnector::createDataSink(
   std::shared_ptr<FileSystemInsertTableHandle> insertTableHandle =
       std::dynamic_pointer_cast<FileSystemInsertTableHandle>(
           connectorInsertTableHandle);
-  std::unordered_map<std::string, std::string> tableParams =
+  const std::unordered_map<std::string, std::string>& tableParams =
       insertTableHandle->tableParameters();
   std::shared_ptr<FileSystemWriteConfig> newWriteConfig =
-      writeConfig->setConfigs<FileSystemWriteConfig>(tableParams);
+      writeConfig->updateAndGetAllConfigs<FileSystemWriteConfig>(tableParams);
   return std::make_unique<FileSystemDataSink>(
       inputType,
       insertTableHandle,

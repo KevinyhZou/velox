@@ -15,8 +15,10 @@
  */
 #pragma once
 
+#include <unordered_map>
 #include "velox/common/config/Config.h"
 #include "velox/dwio/common/Options.h"
+#include "velox/common/compression/Compression.h"
 
 namespace facebook::velox::connector::filesystem {
 
@@ -41,7 +43,7 @@ class FileSystemConfig {
   }
 
   template <typename T>
-  const std::shared_ptr<T> setConfigs(
+  const std::shared_ptr<T> updateAndGetAllConfigs(
       const std::unordered_map<std::string, std::string>& configs) const {
     std::unordered_map<std::string, std::string> rawConfigs =
         config_->rawConfigsCopy();
@@ -55,7 +57,7 @@ class FileSystemConfig {
   ConfigPtr config_;
 
   template <typename T, bool throwException>
-  const T checkAndGetConfigValue(const std::string& configKey, T defaultValue)
+  const T checkAndGetConfigValue(const std::string& configKey, const T& defaultValue)
       const;
 };
 
@@ -67,9 +69,6 @@ class FileSystemWriteConfig : public FileSystemConfig {
       "sink.rolling-policy.rollover-interval";
   static constexpr const char* kFileRollingSize =
       "sink.rolling-policy.file-size";
-  static constexpr const char* kFileNamePrefix = "fs.file_name_prefix";
-  static constexpr const char* kFileNameSuffix = "fs.file_name_suffix";
-  static constexpr const char* kTaskId = "fs.writer_task_id";
   static constexpr const char* kPartitionCommitTrigger =
       "sink.partition-commit.trigger";
   static constexpr const char* kPartitionCommitPolicy =
@@ -80,7 +79,15 @@ class FileSystemWriteConfig : public FileSystemConfig {
       "partition.time-extractor.timestamp-pattern";
   /// The default value of max partitions per writer.
   static constexpr const int32_t defaultMaxPartitionsPerWriter = 65535;
+  /// The supported file format to write
+  const std::unordered_map<std::string, dwio::common::FileFormat> supportedFileFormats = {
+    {"csv", dwio::common::FileFormat::TEXT},
+    {"parquet", dwio::common::FileFormat::PARQUET},
+    {"orc", dwio::common::FileFormat::ORC}
+  };
 
+  const std::string getPath();
+  const dwio::common::FileFormat getFormat();
   const bool allowNullPartitionKeys() {
     return false;
   }
@@ -90,20 +97,14 @@ class FileSystemWriteConfig : public FileSystemConfig {
   const bool isPartitionPathAsLowerCase() {
     return true;
   }
-  const std::string getFileNamePrefix();
-  const std::string getFileNameSuffix();
   const int32_t getFileRollingIntervalMinutes();
   const int32_t getFileRollingSize();
-  const std::string getTaskId();
   const std::string getPartitionCommitTrigger();
   const std::string getPartitionCommitPolicy();
   const int32_t getPartitionCommitDelayMinutes();
   const std::string getPartitionTimeExtractPattern();
-  const std::string getFileCompressionType() {
-    return "None";
-  }
-  const bool flushOnWrite() {
-    return true;
+  const common::CompressionKind getFileCompressionType() {
+    return common::CompressionKind_NONE;
   }
 };
 
@@ -123,5 +124,15 @@ class FileSystemReadConfig : public FileSystemConfig {
   const std::string getFieldDelimiter();
   const uint64_t getMaxReadRows();
   const uint64_t getMaxReadBytes();
+  const bool exists(const std::string& configKey) {
+    return config_ && config_->valueExists(configKey);
+  }
+
+  const ConfigPtr& config() {
+    return config_;
+  }
+
+ private:
+  ConfigPtr config_;
 };
 } // namespace facebook::velox::connector::filesystem
