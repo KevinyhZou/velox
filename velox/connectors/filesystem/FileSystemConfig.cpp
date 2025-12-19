@@ -20,7 +20,7 @@
 namespace facebook::velox::connector::filesystem {
 
 template <typename T, bool throwException>
-const T FileSystemWriteConfig::checkAndGetConfigValue(
+const T FileSystemConfig::checkAndGetConfigValue(
     const std::string& configKey,
     const T& defaultValue) const {
   std::optional<T> configValue =
@@ -62,11 +62,6 @@ const int32_t FileSystemWriteConfig::getFileRollingIntervalMinutes() {
 const std::string FileSystemWriteConfig::getPartitionCommitTrigger() {
   return checkAndGetConfigValue<std::string, false>(
       kPartitionCommitTrigger, "process-time");
-}
-
-const std::string FileSystemWriteConfig::getPartitionCommitPolicy() {
-  return checkAndGetConfigValue<std::string, false>(
-      kPartitionCommitPolicy, "success-file");
 }
 
 const int32_t FileSystemWriteConfig::getPartitionCommitDelayMinutes() {

@@ -246,7 +246,6 @@ StatefulOperatorPtr StatefulPlanner::nodeToStatefulOperator(
         std::move(op),
         std::move(keySelector),
         std::move(targets));
->>>>>>> gluten-0530
   }
 
   return std::make_unique<StatefulOperator>(std::move(op), std::move(targets));

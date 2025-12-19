@@ -119,7 +119,7 @@ StreamElementPtr StatefulTask::next(int32_t& retCode) {
       // finish may trigger window flush and generate output.
       if (pendings_.empty()) {
         retCode = 1;
-        return nullptr;0
+        return nullptr;
       }
     } else if (operatorChain_->sourceEmpty()) {
       return nullptr;
@@ -174,10 +174,6 @@ void StatefulTask::finish() {
   operatorChain_.reset();
   driver.reset();
   testingFinish();
-}
-
-void StatefulTask::commit(int64_t id) {
-  operatorChain_->commit(id);
 }
 
 } // namespace facebook::velox::stateful

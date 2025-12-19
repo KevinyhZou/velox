@@ -100,11 +100,13 @@ class FileSystemWriteConfig : public FileSystemConfig {
   const int32_t getFileRollingIntervalMinutes();
   const int32_t getFileRollingSize();
   const std::string getPartitionCommitTrigger();
-  const std::string getPartitionCommitPolicy();
   const int32_t getPartitionCommitDelayMinutes();
   const std::string getPartitionTimeExtractPattern();
   const common::CompressionKind getFileCompressionType() {
     return common::CompressionKind_NONE;
+  }
+  const bool flushOnWrite() {
+    return true;
   }
 };
 
