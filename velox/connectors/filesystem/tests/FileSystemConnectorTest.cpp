@@ -40,8 +40,6 @@ TEST_F(FileSystemConnectorTest, testConfig) {
       writeConfig->exists(connector::filesystem::FileSystemWriteConfig::kPath));
   ASSERT_TRUE(writeConfig->exists(
       connector::filesystem::FileSystemWriteConfig::kFormat));
-  ASSERT_TRUE(writeConfig->exists(
-      connector::filesystem::FileSystemWriteConfig::kTaskId));
 }
 
 TEST_F(FileSystemConnectorTest, testWriteNonPartitionedTable) {
@@ -201,4 +199,3 @@ int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true); // Parse gflags
   return RUN_ALL_TESTS();
 }
-

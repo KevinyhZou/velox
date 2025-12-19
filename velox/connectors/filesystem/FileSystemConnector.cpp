@@ -13,14 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#include "velox/connectors/filesystem/FileSystemConnector.h"
 #include "velox/common/config/Config.h"
+#include "velox/connectors/filesystem/FileSystemConnector.h"
 #include "velox/connectors/filesystem/FileSystemIndexSource.h"
 #include "velox/connectors/filesystem/FileSystemIndexTableHandle.h"
 #include "velox/connectors/filesystem/FileSystemInsertTableHandle.h"
-#include <folly/executors/CPUThreadPoolExecutor.h>
 #include "velox/connectors/filesystem/FileSystemDataSink.h"
+#include <folly/executors/CPUThreadPoolExecutor.h>
 
 namespace facebook::velox::connector::filesystem {
 

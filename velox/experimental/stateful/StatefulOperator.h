@@ -42,8 +42,6 @@ class StatefulOperator {
 
   bool sourceEmpty();
 
-  void commit(int64_t id);
-
   virtual void close();
 
   void processWatermark(long timestamp, int index);

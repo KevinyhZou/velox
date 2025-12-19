@@ -123,4 +123,3 @@ void FileSystemInsertTableHandle::registerSerDe() {
 }
 
 } // namespace facebook::velox::connector::filesystem
-

@@ -22,8 +22,8 @@
 #include "velox/connectors/filesystem/FileSystemInsertTableHandle.h"
 #include "velox/connectors/hive/HiveDataSink.h"
 #include "velox/connectors/hive/PartitionIdGenerator.h"
-#include <boost/algorithm/string.hpp>
-#include <folly/container/F14Map.h>
+#include "boost/algorithm/string.hpp"
+#include "folly/container/F14Map.h"
 
 namespace facebook::velox::connector::filesystem {
 
@@ -41,7 +41,6 @@ class FsWriterId : public hive::HiveWriterId {
 struct FsWriterIdHasher : public hive::HiveWriterIdHasher {};
 struct FsWriterIdEq : public hive::HiveWriterIdEq {};
 struct FsWriterParameters : public hive::HiveWriterParameters {
- public:
   FsWriterParameters(
       std::optional<std::string> partitionName,
       std::string targetFileName,
@@ -317,4 +316,3 @@ class FileSystemDataSink : public DataSink {
 };
 
 } // namespace facebook::velox::connector::filesystem
-

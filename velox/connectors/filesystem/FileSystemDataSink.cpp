@@ -20,7 +20,6 @@
 #include "velox/dwio/common/Options.h"
 #include "velox/exec/OperatorUtils.h"
 #include "velox/type/TimestampConversion.h"
-
 #include "boost/uuid/uuid.hpp"
 #include "boost/uuid/uuid_generators.hpp"
 #include "boost/uuid/uuid_io.hpp"
@@ -602,4 +601,3 @@ const std::pair<std::string, std::string> FsFileNameGenerator::gen() const {
 }
 
 } // namespace facebook::velox::connector::filesystem
-
