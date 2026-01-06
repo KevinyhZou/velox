@@ -64,23 +64,13 @@ class WindowAggregator : public StatefulOperator, public Triggerable<uint32_t, i
 
   void onTimer(std::shared_ptr<TimerHeapInternalTimer<uint32_t, int64_t>> timer);
 
-  template<typename K>
-  void mergeState(K key, int64_t timerTimestamp, int64_t windowEnd);
-
   std::unique_ptr<exec::Operator> localAggregator_;
   std::unique_ptr<KeySelector> keySelector_;
-  std::unique_ptr<SliceAssigner> sliceAssigner_;
-  const int64_t windowInterval_;
-  const bool useDayLightSaving_;
-  const int shiftTimeZone_ = 0; // TODO: support time zone shift
   const bool isEventTime_ = true;
-  const int windowStartIndex_ = -1;
-  const int windowEndIndex_ = -1;
   RowVectorPtr input_;
   int64_t currentProgress_ = 0;
   int64_t nextTriggerWatermark_ = 0;
   int64_t lastTriggeredProcessingTime_ = 0;
-  std::shared_ptr<ValueState<uint32_t, int64_t, RowVectorPtr>> windowState_;
   std::shared_ptr<WindowProcessor<uint32_t, int64_t>> windowProcessor_;
 };
 

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #include "velox/experimental/stateful/window/SliceAssigner.h"
+#include <optional>
 #include "velox/experimental/stateful/window/Window.h"
 #include "velox/experimental/stateful/window/TimeWindowUtil.h"
 
@@ -85,6 +86,7 @@ HoppingSliceAssigner::HoppingSliceAssigner(
   int32_t rowtimeIndex
 ) : SharedSliceAssigner(std::move(keySelector), size, step, offset, WindowType::HOP, rowtimeIndex) {
   sliceSize_ = std::gcd(size, step);
+  numSlicesPerWindow_ = (int32_t) (size_ / sliceSize_);
 }
 
 std::list<int64_t> HoppingSliceAssigner::expiredSlices(int64_t windowEnd) {
@@ -101,6 +103,22 @@ int64_t HoppingSliceAssigner::getLastWindowEnd(int64_t sliceEnd) {
 
 int64_t HoppingSliceAssigner::getWindowStart(int64_t windowEnd) {
   return windowEnd - size_;
+}
+
+std::list<int64_t> HoppingSliceAssigner::slicesToBeMerged(int64_t sliceEnd) {
+  std::list<int64_t> toBeMerged;
+  int64_t lastSliceEnd = sliceEnd;
+  for (int32_t i = numSlicesPerWindow_; i > 0; --i) {
+    toBeMerged.emplace_back(lastSliceEnd);
+    lastSliceEnd -= sliceSize_;
+  }
+  return toBeMerged;
+}
+
+std::optional<int64_t> HoppingSliceAssigner::nextTriggerWindow(int64_t windowEnd) {
+  std::optional<int64_t> res;
+  res.emplace(windowEnd + sliceSize_);
+  return res;
 }
 
 CumulativeSliceAssigner::CumulativeSliceAssigner(
@@ -137,6 +155,28 @@ int64_t CumulativeSliceAssigner::getLastWindowEnd(int64_t sliceEnd) {
 
 int64_t CumulativeSliceAssigner::getWindowStart(int64_t windowEnd) {
   return TimeWindowUtil::getWindowStartWithOffset(windowEnd - 1, offset_, maxSize_);
+}
+
+std::list<int64_t> CumulativeSliceAssigner::slicesToBeMerged(int64_t sliceEnd) {
+  std::list<int64_t> toBeMerged;
+  int64_t windowStart = getWindowStart(sliceEnd);
+  int64_t firstSliceEnd = windowStart + step_;
+  if (sliceEnd != firstSliceEnd) {
+    toBeMerged.emplace_back(sliceEnd);
+  }
+  return toBeMerged;
+}
+
+std::optional<int64_t> CumulativeSliceAssigner::nextTriggerWindow(int64_t windowEnd) {
+  int64_t nextWindowEnd = windowEnd + step_;
+  long maxWindowEnd = getWindowStart(windowEnd) + maxSize_;
+  if (nextWindowEnd > maxWindowEnd) {
+    return std::nullopt;
+  } else {
+    std::optional<int64_t> res;
+    res.emplace(nextWindowEnd);
+    return res;
+  }
 }
 
 std::unique_ptr<SliceAssigner> buildSliceAssigner(

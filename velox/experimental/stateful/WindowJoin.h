@@ -20,9 +20,7 @@
 #include "velox/experimental/stateful/TimerHeapInternalTimer.h"
 #include "velox/experimental/stateful/KeySelector.h"
 #include "velox/experimental/stateful/StatefulOperator.h"
-#include "velox/experimental/stateful/StatefulPlanNode.h"
 #include "velox/experimental/stateful/Triggerable.h"
-#include "velox/experimental/stateful/join/JoinRecordStateView.h"
 
 namespace facebook::velox::stateful {
 

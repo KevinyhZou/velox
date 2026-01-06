@@ -16,6 +16,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include "velox/experimental/stateful/KeySelector.h"
 #include "velox/experimental/stateful/window/Window.h"
 
@@ -110,6 +111,14 @@ public:
 
   int64_t getSliceEndInterval() override;
 
+  virtual std::list<int64_t> slicesToBeMerged(int64_t sliceEnd) {
+    return {};
+  }
+
+  virtual std::optional<int64_t> nextTriggerWindow(int64_t windowEnd) {
+    return std::nullopt;
+  }
+
 protected:
     int64_t step_;
     int64_t sliceSize_;
@@ -129,6 +138,13 @@ public:
   int64_t getLastWindowEnd(int64_t sliceEnd) override;
 
   int64_t getWindowStart(int64_t windowEnd) override;
+
+  std::list<int64_t> slicesToBeMerged(int64_t sliceEnd) override;
+
+  std::optional<int64_t> nextTriggerWindow(int64_t windowEnd) override;
+
+private:
+    int32_t numSlicesPerWindow_;
 };
 
 class CumulativeSliceAssigner : public SharedSliceAssigner {
@@ -146,6 +162,10 @@ public:
   int64_t getLastWindowEnd(int64_t sliceEnd) override;
 
   int64_t getWindowStart(int64_t windowEnd) override;
+
+  std::list<int64_t> slicesToBeMerged(int64_t sliceEnd) override;
+
+  std::optional<int64_t> nextTriggerWindow(int64_t windowEnd) override;
 
 private:
     int64_t maxSize_;

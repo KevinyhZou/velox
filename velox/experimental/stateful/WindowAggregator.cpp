@@ -39,32 +39,30 @@ WindowAggregator::WindowAggregator(
     : StatefulOperator(std::move(globalAggregator), std::move(targets)), Triggerable<uint32_t, int64_t>(),
       localAggregator_(std::move(localAggregator)),
       keySelector_(std::move(keySelector)),
-      sliceAssigner_(std::move(sliceAssigner)),
-      windowInterval_(windowInterval),
-      useDayLightSaving_(useDayLightSaving),
-      isEventTime_(isEventTime),
-      windowStartIndex_(windowStartIndex),
-      windowEndIndex_(windowEndIndex) {}
+      isEventTime_(isEventTime) {
+  
+  StateDescriptor stateDesc("window-aggs");
+  auto windowState = stateHandler()->getValueState(stateDesc);
+  auto windowTimerService = stateHandler()->createTimerService(this);
+  WindowBufferPtr windowBuffer = std::make_shared<RecordsWindowBuffer>();
+  windowProcessor_ = stateful::buildWindowProgressor<uint32_t, int64_t>(
+    std::move(sliceAssigner),
+    windowState,
+    windowTimerService,
+    windowBuffer,
+    0, 
+    windowInterval, 
+    useDayLightSaving,
+    windowStartIndex,
+    windowEndIndex);
+}
 
 void WindowAggregator::initialize() {
   StatefulOperator::initialize();
   if (localAggregator_) {
     localAggregator_->initialize();
   }
-
-  StateDescriptor stateDesc("window-aggs");
-  windowState_ = stateHandler()->getValueState(stateDesc);
-  std::shared_ptr<InternalTimerService<uint32_t, int64_t>> windowTimerService = stateHandler()->createTimerService(this);
-  WindowBufferPtr windowBuffer = std::make_shared<RecordsWindowBuffer>();
-  windowProcessor_ = stateful::buildWindowProgressor<uint32_t, int64_t>(
-    sliceAssigner_,
-    windowState_,
-    windowTimerService,
-    mtx_, 
-    windowBuffer, 
-    shiftTimeZone_, 
-    windowInterval_, 
-    useDayLightSaving_);
+  /// TODO: initialize state here
 }
 
 void WindowAggregator::addInput(RowVectorPtr input) {
@@ -76,9 +74,9 @@ void WindowAggregator::getOutput() {
   if (!input_) {
     return;
   }
-
   std::map<int64_t, RowVectorPtr> keyToData = keySelector_->partition(input_);
   for (const auto& [key, data] : keyToData) {
+    std::lock_guard<std::mutex> lock(*mtx_);
     windowProcessor_->processElement(currentProgress_,  key, data);
   }
   input_.reset();
@@ -97,7 +95,7 @@ void WindowAggregator::processWatermarkInternal(int64_t timestamp) {
         // TODO: agg should output no matter how many rows in datas.
         localAggregator_->addInput(TimeWindowUtil::mergeVectors(datas, op()->pool()));
         RowVectorPtr localAcc = localAggregator_->getOutput(); 
-        auto stateAcc = windowState_->value(windowKey.key(), windowKey.window());
+        auto stateAcc = windowProcessor_->stateValue(windowKey.key(), windowKey.window());
         std::list<RowVectorPtr> allDatas;
         if (!localAcc && !stateAcc) {
           continue;
@@ -111,20 +109,18 @@ void WindowAggregator::processWatermarkInternal(int64_t timestamp) {
           op()->addInput(TimeWindowUtil::mergeVectors(allDatas, op()->pool()));
           auto newAcc = op()->getOutput();
           if (newAcc) {
-            windowState_->update(windowKey.key(), windowKey.window(), newAcc);
+            windowProcessor_->stateUpdate(windowKey.key(), windowKey.window(), newAcc);
           }
         }
       }
       windowProcessor_->advanceWatermark(currentProgress_);
-      nextTriggerWatermark_ =
-          TimeWindowUtil::getNextTriggerWatermark(
-              currentProgress_, windowInterval_, shiftTimeZone_, useDayLightSaving_);
+      nextTriggerWatermark_ = windowProcessor_->getNextTriggerWatermark(currentProgress_);
     }
   }
 }
 
 void WindowAggregator::onTimer(std::shared_ptr<TimerHeapInternalTimer<uint32_t, int64_t>> timer) {
-  const RowVectorPtr output = windowProcessor_->fireWindow(timer->key(), timer->timestamp(), timer->ns());
+  const RowVectorPtr output = windowProcessor_->fireWindow(timer->key(), timer->timestamp(), timer->ns(), op());
   if (output) {
     pushOutput(output);
   }
@@ -144,7 +140,7 @@ void WindowAggregator::onProcessingTime(std::shared_ptr<TimerHeapInternalTimer<u
         continue;
       }
       std::list<RowVectorPtr> allDatas(datas.begin(), datas.end());
-      auto stateAcc = windowState_->value(windowKey.key(), windowKey.window());
+      auto stateAcc = windowProcessor_->stateValue(windowKey.key(), windowKey.window());
       if (stateAcc) {
         allDatas.push_back(stateAcc);
       }
@@ -152,7 +148,7 @@ void WindowAggregator::onProcessingTime(std::shared_ptr<TimerHeapInternalTimer<u
       op()->addInput(opInput);
       auto newAcc = op()->getOutput();
       if (newAcc) {
-        windowState_->update(windowKey.key(), windowKey.window(), newAcc);
+        windowProcessor_->stateUpdate(windowKey.key(), windowKey.window(), newAcc);
       }
     }
     if (!windowKeyToData.empty()) {
@@ -170,7 +166,6 @@ void WindowAggregator::close() {
   }
   input_.reset();
   windowProcessor_->close();
-  windowState_->clear();
   currentProgress_ = 0;
   nextTriggerWatermark_ = 0;
 }

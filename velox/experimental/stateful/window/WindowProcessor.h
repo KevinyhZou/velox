@@ -15,12 +15,15 @@
  */
 #pragma once
 
+#include <exec/Operator.h>
+#include <experimental/stateful/StatefulOperator.h>
 #include "velox/vector/ComplexVector.h"
 #include "velox/experimental/stateful/state/State.h"
 #include "velox/experimental/stateful/window/SliceAssigner.h"
 #include "velox/experimental/stateful/window/WindowBuffer.h"
 #include "velox/experimental/stateful/InternalTimerService.h"
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
 
 namespace facebook::velox::stateful {
@@ -28,12 +31,28 @@ namespace facebook::velox::stateful {
 template<typename K, typename W>
 class WindowProcessor {
 public:
-  WindowProcessor(WindowBufferPtr& windowBuffer);
+  using WindowStatePtr = std::shared_ptr<ValueState<K, W, RowVectorPtr>>;
+
+  WindowProcessor(
+    WindowBufferPtr& windowBuffer,
+    WindowStatePtr& windowState);
 
   // void initializeWatermark(const int64_t watermark);
 
   virtual bool processElement(const int64_t progress, const K& key, const RowVectorPtr& rowData) {
     return false;
+  }
+
+  RowVectorPtr stateValue(K key, W window) {
+    return windowState_->value(key, window);
+  }
+
+  void stateUpdate(K key, W window, RowVectorPtr value) {
+    windowState_->update(key, window, value);
+  }
+
+  void stateRemove(K key, W window) {
+    windowState_->remove(key, window);
   }
 
   std::unordered_map<WindowKey, std::list<RowVectorPtr>>& advanceProgress(int64_t progress) {
@@ -44,8 +63,12 @@ public:
 
   // void prepareCheckpoint();
 
-  virtual RowVectorPtr fireWindow(K key, int64_t timerTimestamp, W window) {
+  virtual RowVectorPtr fireWindow(K key, int64_t timerTimestamp, W window, std::unique_ptr<exec::Operator>& op) {
     return nullptr;
+  }
+
+  virtual int64_t getNextTriggerWatermark(int64_t progress) {
+    return 0;
   }
 
   virtual void clearWindow(K key, int64_t timerTimestamp, W window) {}
@@ -56,6 +79,8 @@ public:
 
 protected:
   WindowBufferPtr windowBuffer_;
+  WindowStatePtr windowState_;
+
 };
 
 template<typename K, typename W>
@@ -65,36 +90,37 @@ public:
       std::unique_ptr<SliceAssigner>& sliceAssigner,
       std::shared_ptr<ValueState<K, W, RowVectorPtr>>& windowState,
       std::shared_ptr<InternalTimerService<K, W>>& windowTimerService,
-      std::shared_ptr<std::mutex>& mtx,
       WindowBufferPtr& windowBuffer,
       const int32_t shiftTimeZone,
       const int64_t windowInterval,
-      const bool useDayLightSaving
+      const bool useDayLightSaving,
+      const int32_t windowStartIndex,
+      const int32_t windowEndIndex
     );
 
     bool processElement(const int64_t progress, const K& key, const RowVectorPtr& data) override;
 
     void advanceWatermark(int64_t progress) override;
 
-    RowVectorPtr fireWindow(K key, int64_t timerTimestamp, W window) override;
-
     void clearWindow(K key, int64_t timerTimestamp, W window) override;
+
+    int64_t getNextTriggerWatermark(int64_t progress) override;
 
     void clearBuffer() override;
 
     void close() override;
 
-private:
+    void setWindowStartAndEnd(RowVectorPtr& data, W windowEnd);
+
+protected:
   std::unique_ptr<SliceAssigner> sliceAssigner_;
-  std::shared_ptr<ValueState<K, W, RowVectorPtr>> windowState_;
   std::shared_ptr<InternalTimerService<K, W>> windowTimerService_;
-  std::shared_ptr<std::mutex> mtx_;
-  const int32_t shiftTimeZone_ = 0; // TODO: support time zone shift
+  const int32_t shiftTimeZone_ ; // TODO: support time zone shift
   const int64_t windowInterval_;
   const bool useDayLightSaving_;
-  const int32_t windowStartIndex_ = 0;
-  const int32_t windowEndIndex_ = 0;
-
+  const int32_t windowStartIndex_;
+  const int32_t windowEndIndex_ ;
+  
   int64_t sliceStateMergeTarget(int64_t sliceToMerge);
 };
 
@@ -105,11 +131,14 @@ public:
       std::unique_ptr<SliceAssigner>& sliceAssigner,
       std::shared_ptr<ValueState<K, W, RowVectorPtr>>& windowState,
       std::shared_ptr<InternalTimerService<K, W>>& windowTimerService,
-      std::shared_ptr<std::mutex>& mtx,
       WindowBufferPtr& windowBuffer,
       const int32_t shiftTimeZone,
       const int64_t windowInterval,
-      const bool useDayLightSaving);
+      const bool useDayLightSaving,
+      const int32_t windowStartIndex,
+      const int32_t windowEndIndex);
+
+    RowVectorPtr fireWindow(K key, int64_t timerTimestamp, W window, std::unique_ptr<exec::Operator>& op) override;
 };
 
 template<typename K, typename W>
@@ -119,30 +148,36 @@ public:
       std::unique_ptr<SliceAssigner>& sliceAssigner,
       std::shared_ptr<ValueState<K, W, RowVectorPtr>>& windowState,
       std::shared_ptr<InternalTimerService<K, W>>& windowTimerService,
-      std::shared_ptr<std::mutex>& mtx,
       WindowBufferPtr& windowBuffer,
       const int32_t shiftTimeZone,
       const int64_t windowInterval,
-      const bool useDayLightSaving);
+      const bool useDayLightSaving,
+      const int32_t windowStartIndex,
+      const int32_t windowEndIndex);
+
+     RowVectorPtr fireWindow(K key, int64_t timerTimestamp, W window, std::unique_ptr<exec::Operator>& op) override;
+
+     RowVectorPtr merge(K key, W mergeResult, std::list<W>& toBeMerged, std::unique_ptr<exec::Operator>& op);
 };
 
 template<typename K, typename W>
 class UnslicingWindowProcessor : public WindowProcessor<K, W> {
 public:
-  UnslicingWindowProcessor(WindowBufferPtr& windowBuffer) 
-    : WindowProcessor<K, W>(windowBuffer) {}
+  UnslicingWindowProcessor(WindowBufferPtr& windowBuffer, std::shared_ptr<ValueState<K, W, RowVectorPtr>>& windowState) 
+    : WindowProcessor<K, W>(windowBuffer, windowState) {}
 
 };
 
 template<typename K, typename W>
-inline std::shared_ptr<WindowProcessor<K, W>> buildWindowProgressor(
-  std::unique_ptr<SliceAssigner>& sliceAssigner,
+std::shared_ptr<WindowProcessor<K, W>> buildWindowProgressor(
+  std::unique_ptr<SliceAssigner> sliceAssigner,
   std::shared_ptr<ValueState<K, W, RowVectorPtr>>& windowState,
   std::shared_ptr<InternalTimerService<K, W>>& windowTimerService,
-  std::shared_ptr<std::mutex>& mtx,
   WindowBufferPtr& windowBuffer,
   const int32_t shiftTimeZone,
   const int64_t windowInterval,
-  const bool useDayLightSaving);
+  const bool useDayLightSaving,
+  const int32_t windowStartIndex,
+  const int32_t windowEndIndex);
 
 }
