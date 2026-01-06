@@ -56,7 +56,7 @@ void WindowAggregator::initialize() {
   windowState_ = stateHandler()->getValueState(stateDesc);
   std::shared_ptr<InternalTimerService<uint32_t, int64_t>> windowTimerService = stateHandler()->createTimerService(this);
   WindowBufferPtr windowBuffer = std::make_shared<RecordsWindowBuffer>();
-  windowProcessor_ = stateful::WindowProcessorBuilder<uint32_t, int64_t>::buildWindowProgressor(
+  windowProcessor_ = stateful::buildWindowProgressor<uint32_t, int64_t>(
     sliceAssigner_,
     windowState_,
     windowTimerService,

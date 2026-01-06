@@ -50,7 +50,7 @@ public:
 
   virtual void clearWindow(K key, int64_t timerTimestamp, W window) {}
 
-  virtual void clearBuffer();
+  virtual void clearBuffer() {}
 
   virtual void close() {}
 
@@ -76,26 +76,26 @@ public:
 
     void advanceWatermark(int64_t progress) override;
 
-    RowVectorPtr fireWindow(K key, int64_t timerTimestamp, W window);
+    RowVectorPtr fireWindow(K key, int64_t timerTimestamp, W window) override;
 
-    void clearWindow(K key, int64_t timerTimestamp, W window);
+    void clearWindow(K key, int64_t timerTimestamp, W window) override;
 
     void clearBuffer() override;
 
     void close() override;
 
 private:
-    const int32_t shiftTimeZone_ = 0; // TODO: support time zone shift
-    const int64_t windowInterval_;
-    const bool useDayLightSaving_;
-    const int32_t windowStartIndex_;
-    const int32_t windowEndIndex_;
-    std::unique_ptr<SliceAssigner> sliceAssigner_;
-    std::shared_ptr<ValueState<K, W, RowVectorPtr>> windowState_;
-    std::shared_ptr<InternalTimerService<K, W>> windowTimerService_;
-    std::shared_ptr<std::mutex> mtx_;
+  std::unique_ptr<SliceAssigner> sliceAssigner_;
+  std::shared_ptr<ValueState<K, W, RowVectorPtr>> windowState_;
+  std::shared_ptr<InternalTimerService<K, W>> windowTimerService_;
+  std::shared_ptr<std::mutex> mtx_;
+  const int32_t shiftTimeZone_ = 0; // TODO: support time zone shift
+  const int64_t windowInterval_;
+  const bool useDayLightSaving_;
+  const int32_t windowStartIndex_ = 0;
+  const int32_t windowEndIndex_ = 0;
 
-    int64_t sliceStateMergeTarget(int64_t sliceToMerge);
+  int64_t sliceStateMergeTarget(int64_t sliceToMerge);
 };
 
 template<typename K, typename W>
@@ -129,21 +129,20 @@ public:
 template<typename K, typename W>
 class UnslicingWindowProcessor : public WindowProcessor<K, W> {
 public:
-  UnslicingWindowProcessor() {}
+  UnslicingWindowProcessor(WindowBufferPtr& windowBuffer) 
+    : WindowProcessor<K, W>(windowBuffer) {}
+
 };
 
 template<typename K, typename W>
-class WindowProcessorBuilder {
-public:
-  static std::shared_ptr<WindowProcessor<K, W>> buildWindowProgressor(
-    std::unique_ptr<SliceAssigner>& sliceAssigner,
-    std::shared_ptr<ValueState<K, W, RowVectorPtr>>& windowState,
-    std::shared_ptr<InternalTimerService<K, W>>& windowTimerService,
-    std::shared_ptr<std::mutex>& mtx,
-    WindowBufferPtr& windowBuffer,
-    const int32_t shiftTimeZone,
-    const int64_t windowInterval,
-    const bool useDayLightSaving);
-};
+inline std::shared_ptr<WindowProcessor<K, W>> buildWindowProgressor(
+  std::unique_ptr<SliceAssigner>& sliceAssigner,
+  std::shared_ptr<ValueState<K, W, RowVectorPtr>>& windowState,
+  std::shared_ptr<InternalTimerService<K, W>>& windowTimerService,
+  std::shared_ptr<std::mutex>& mtx,
+  WindowBufferPtr& windowBuffer,
+  const int32_t shiftTimeZone,
+  const int64_t windowInterval,
+  const bool useDayLightSaving);
 
 }

@@ -43,7 +43,7 @@ class RuntimeContext {
   }
 
   std::shared_ptr<InternalTimerService<uint32_t, int64_t>> createTimerService(
-      Triggerable* triggerable) {
+      Triggerable<uint32_t, int64_t>* triggerable) {
     return keyedStateBackend_->createTimerService(triggerable);
   }
 

@@ -200,7 +200,7 @@ SliceUnSharedWindowAggProcessor<K, W>::SliceUnSharedWindowAggProcessor(
   const int64_t windowInterval,
   const bool useDayLightSaving)
  : SlicingWindowAggProcessor<K, W>(
-    std::move(sliceAssigner), 
+    sliceAssigner, 
     windowState, 
     windowTimerService,
     mtx,
@@ -220,7 +220,7 @@ SliceSharedWindowAggProcessor<K, W>::SliceSharedWindowAggProcessor(
   const int64_t windowInterval,
   const bool useDayLightSaving)
  : SlicingWindowAggProcessor<K, W>(
-    std::move(sliceAssigner), 
+    sliceAssigner, 
     windowState, 
     windowTimerService,
     mtx,
@@ -230,7 +230,7 @@ SliceSharedWindowAggProcessor<K, W>::SliceSharedWindowAggProcessor(
     useDayLightSaving) {}
 
 template<typename K, typename W>
-std::shared_ptr<WindowProcessor<K, W>> WindowProcessorBuilder<K, W>::buildWindowProgressor(
+inline std::shared_ptr<WindowProcessor<K, W>> buildWindowProgressor(
   std::unique_ptr<SliceAssigner>& sliceAssigner,
   std::shared_ptr<ValueState<K, W, RowVectorPtr>>& windowState,
   std::shared_ptr<InternalTimerService<K, W>>& windowTimerService,
@@ -242,13 +242,22 @@ std::shared_ptr<WindowProcessor<K, W>> WindowProcessorBuilder<K, W>::buildWindow
   WindowType windowType = sliceAssigner->getWindowType();
   if (windowType == WindowType::TUMBLE) {
     return std::make_shared<SliceUnSharedWindowAggProcessor<K, W>>(
-      std::move(sliceAssigner), windowState, windowTimerService, mtx, windowBuffer, shiftTimeZone, windowInterval, useDayLightSaving);
+      sliceAssigner, windowState, windowTimerService, mtx, windowBuffer, shiftTimeZone, windowInterval, useDayLightSaving);
   } else if (windowType == WindowType::HOP || windowType == WindowType::CUMULATIVE) {
     return std::make_shared<SliceSharedWindowAggProcessor<K, W>>(
-      std::move(sliceAssigner), windowState, windowTimerService, mtx, windowBuffer, shiftTimeZone, windowInterval, useDayLightSaving);
+      sliceAssigner, windowState, windowTimerService, mtx, windowBuffer, shiftTimeZone, windowInterval, useDayLightSaving);
   } else {
-    return std::make_shared<UnslicingWindowProcessor<K, W>>();
+    return std::make_shared<UnslicingWindowProcessor<K, W>>(windowBuffer);
   }
 }
 
+template std::shared_ptr<WindowProcessor<uint32_t, int64_t>> buildWindowProgressor(
+  std::unique_ptr<SliceAssigner>& sliceAssigner,
+  std::shared_ptr<ValueState<uint32_t, int64_t, RowVectorPtr>>& windowState,
+  std::shared_ptr<InternalTimerService<uint32_t, int64_t>>& windowTimerService,
+  std::shared_ptr<std::mutex>& mtx,
+  WindowBufferPtr& windowBuffer,
+  const int32_t shiftTimeZone,
+  const int64_t windowInterval,
+  const bool useDayLightSaving );
 }

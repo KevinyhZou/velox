@@ -76,7 +76,6 @@ class WindowAggregator : public StatefulOperator, public Triggerable<uint32_t, i
   const bool isEventTime_ = true;
   const int windowStartIndex_ = -1;
   const int windowEndIndex_ = -1;
-
   RowVectorPtr input_;
   int64_t currentProgress_ = 0;
   int64_t nextTriggerWatermark_ = 0;
