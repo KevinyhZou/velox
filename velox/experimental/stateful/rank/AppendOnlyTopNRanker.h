@@ -35,7 +35,7 @@ class AppendOnlyTopNRanker : public exec::Operator, public KeyedProcessFunction 
       // RankRange rankRange,
       bool generateUpdateBefore,
       bool outputRankNumber,
-      long cacheSize);
+      int64_t cacheSize);
 
   bool needsInput() const override {
     VELOX_NYI();

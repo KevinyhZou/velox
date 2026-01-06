@@ -23,8 +23,8 @@ namespace facebook::velox::stateful {
 class Snapshotable {
  public:
   virtual void snapshot(
-      long checkpointId,
-      long timestamp,
+      int64_t checkpointId,
+      int64_t timestamp,
       CheckpointOptions checkpointOptions) = 0;
 };
 

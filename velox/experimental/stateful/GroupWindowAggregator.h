@@ -39,11 +39,11 @@ class GroupWindowAggregator : public StatefulOperator, public Triggerable<uint32
       std::vector<std::unique_ptr<StatefulOperator>> targets,
       std::unique_ptr<KeySelector> keySelector,
       std::unique_ptr<SliceAssigner> sliceAssigner,
-      long allowedLateness,
+      int64_t allowedLateness,
       bool produceUpdates,
-      int rowtimeIndex,
+      int32_t rowtimeIndex,
       bool isEventTime,
-      int shiftTimeZone = 0);
+      int32_t shiftTimeZone = 0);
 
   void initialize() override;
 
@@ -71,30 +71,30 @@ class GroupWindowAggregator : public StatefulOperator, public Triggerable<uint32
 
     void open() override;
 
-    bool onElement(uint32_t key, RowVectorPtr row, long timestamp, TimeWindow window) override;
+    bool onElement(uint32_t key, RowVectorPtr row, int64_t timestamp, TimeWindow window) override;
 
-    bool onProcessingTime(TimeWindow window, long time) override;
+    bool onProcessingTime(TimeWindow window, int64_t time) override;
 
-    bool onEventTime(TimeWindow window, long time) override;
+    bool onEventTime(TimeWindow window, int64_t time) override;
 
     void onMerge(uint32_t key, TimeWindow window) override;
 
-    long getCurrentProcessingTime() override;
+    int64_t getCurrentProcessingTime() override;
 
-    long getCurrentWatermark() override;
+    int64_t getCurrentWatermark() override;
 
     // TODO: support it
     // MetricGroup getMetricGroup()；
 
-    void registerProcessingTimeTimer(uint32_t key, TimeWindow window, long time) override;
+    void registerProcessingTimeTimer(uint32_t key, TimeWindow window, int64_t time) override;
 
-    void registerEventTimeTimer(uint32_t key, TimeWindow window, long time) override;
+    void registerEventTimeTimer(uint32_t key, TimeWindow window, int64_t time) override;
 
-    void deleteProcessingTimeTimer(uint32_t key, TimeWindow window, long time) override;
+    void deleteProcessingTimeTimer(uint32_t key, TimeWindow window, int64_t time) override;
 
-    void deleteEventTimeTimer(uint32_t key, TimeWindow window, long time) override;
+    void deleteEventTimeTimer(uint32_t key, TimeWindow window, int64_t time) override;
 
-    int getShiftTimeZone();
+    int32_t getShiftTimeZone();
 
     void clear(uint32_t key, TimeWindow window) override;
 
@@ -105,7 +105,7 @@ class GroupWindowAggregator : public StatefulOperator, public Triggerable<uint32
    private:
     std::shared_ptr<WindowTrigger> trigger_;
     std::shared_ptr<InternalTimerService<uint32_t, TimeWindow>> internalTimerService_;
-    int shiftTimeZone_;
+    int32_t shiftTimeZone_;
     TimeWindow window;
     std::vector<TimeWindow> mergedWindows;
   };
@@ -117,11 +117,11 @@ class GroupWindowAggregator : public StatefulOperator, public Triggerable<uint32
   std::unique_ptr<WindowProcessFunction<TimeWindow>> windowFunction_;
   std::unique_ptr<KeySelector> keySelector_;
   std::unique_ptr<SliceAssigner> sliceAssigner_;
-  const long allowedLateness_;
+  const int64_t allowedLateness_;
   const bool produceUpdates_;
-  const int rowtimeIndex_ = 0;
+  const int32_t rowtimeIndex_ = 0;
   const bool isEventTime_;
-  const int shiftTimeZone_ = 0; // TODO: support time zone shift
+  const int32_t shiftTimeZone_ = 0; // TODO: support time zone shift
   GroupWindowAggsHandler* windowAggregator_;
 
   RowVectorPtr input_;
@@ -142,7 +142,7 @@ class WindowContext : public FunctionContext<TimeWindow> {
       std::shared_ptr<StreamOperatorStateHandler> stateHandler,
       int shiftTimeZone,
       bool isEventTime,
-      long allowedLateness);
+      int64_t allowedLateness);
 
   StatePtr getPartitionedState(StateDescriptor& stateDescriptor) override;
 
@@ -150,9 +150,9 @@ class WindowContext : public FunctionContext<TimeWindow> {
     return currentKey_;
   }
 
-  long currentProcessingTime() override;
+  int64_t currentProcessingTime() override;
 
-  long currentWatermark() override;
+  int64_t currentWatermark() override;
 
   int getShiftTimeZone() override;
 
@@ -180,9 +180,9 @@ class WindowContext : public FunctionContext<TimeWindow> {
   std::shared_ptr<InternalTimerService<uint32_t, TimeWindow>> timerService_;
   std::shared_ptr<TriggerContext> triggerContext_;
   std::shared_ptr<StreamOperatorStateHandler> stateHandler_;
-  int shiftTimeZone_;
+  int32_t shiftTimeZone_;
   bool isEventTime_;
-  long allowedLateness_;
+  int64_t allowedLateness_;
   uint32_t currentKey_;
 };
 } // namespace facebook::velox::stateful

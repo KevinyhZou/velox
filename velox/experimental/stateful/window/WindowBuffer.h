@@ -18,7 +18,6 @@
 #include "velox/experimental/stateful/window/WindowKey.h"
 #include "velox/vector/ComplexVector.h"
 #include <climits>
-#include <mutex>
 
 namespace facebook::velox::stateful {
 

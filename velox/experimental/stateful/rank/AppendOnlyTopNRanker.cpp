@@ -29,7 +29,7 @@ AppendOnlyTopNRanker::AppendOnlyTopNRanker(
     // RankRange rankRange,
     bool generateUpdateBefore,
     bool outputRankNumber,
-    long cacheSize)
+    int64_t cacheSize)
     : exec::Operator(
       driverCtx,
       rankNode->outputType(),
@@ -52,7 +52,7 @@ void AppendOnlyTopNRanker::initialize() {
 
 void AppendOnlyTopNRanker::open(StreamOperatorStateHandler* stateHandler) {
   /**
-  int lruCacheSize = Math.max(1, (int) (cacheSize / getDefaultTopNSize()));
+  int32_t lruCacheSize = Math.max(1, (int) (cacheSize / getDefaultTopNSize()));
   CacheBuilder<Object, Object> cacheBuilder = CacheBuilder.newBuilder();
   if (ttlConfig.isEnabled()) {
       cacheBuilder.expireAfterWrite(

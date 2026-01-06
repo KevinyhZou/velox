@@ -16,6 +16,7 @@
 #pragma once
 
 #include <climits>
+#include <cstdint>
 #include <vector>
 
 namespace facebook::velox::stateful {
@@ -29,27 +30,27 @@ class CombinedWatermarkStatus {
     partialWatermarks_.resize(numWatermarks);
   }
 
-  bool updateWatermark(int index, long timestamp);
+  bool updateWatermark(int32_t index, int64_t timestamp);
 
-  long getCombinedWatermark();
+  int64_t getCombinedWatermark();
 
  private:
   bool updateCombinedWatermark();
 
   std::vector<PartialWatermark> partialWatermarks_;
   bool idle_ = false;
-  long combinedWatermark_ = LONG_MIN;
+  int64_t combinedWatermark_ = LONG_MIN;
 };
 
 class PartialWatermark {
  public:
-  bool setWatermark(long watermark);
+  bool setWatermark(int64_t watermark);
 
   bool idle() const {
     return idle_;
   }
 
-  long watermark() const {
+  int64_t watermark() const {
     return watermark_;
   }
 
@@ -58,7 +59,7 @@ class PartialWatermark {
   }
 
  private:
-  long watermark_ = LONG_MIN;
+  int64_t watermark_ = LONG_MIN;
   bool idle_ = false;
 };
 

@@ -18,7 +18,7 @@
 
 namespace facebook::velox::stateful {
 
-bool CombinedWatermarkStatus::updateWatermark(int index, long timestamp) {
+bool CombinedWatermarkStatus::updateWatermark(int32_t index, int64_t timestamp) {
   VELOX_CHECK(index < partialWatermarks_.size(), "Index out of range");
   auto& watermark = partialWatermarks_[index];
 
@@ -30,12 +30,12 @@ bool CombinedWatermarkStatus::updateWatermark(int index, long timestamp) {
   return updateCombinedWatermark();
 }
 
-long CombinedWatermarkStatus::getCombinedWatermark() {
+int64_t CombinedWatermarkStatus::getCombinedWatermark() {
   return combinedWatermark_;
 }
 
 bool CombinedWatermarkStatus::updateCombinedWatermark() {
-  long minimumOverAll = LONG_MIN;
+  int64_t minimumOverAll = INT64_MAX;
   bool allIdle = true;
   for (const auto& watermark : partialWatermarks_) {
     if (!watermark.idle()) {
@@ -54,7 +54,7 @@ bool CombinedWatermarkStatus::updateCombinedWatermark() {
   return false;
 }
 
-bool PartialWatermark::setWatermark(long watermark) {
+bool PartialWatermark::setWatermark(int64_t watermark) {
   if (watermark < watermark_) {
     // If the new watermark is less than or equal to the current one, we do not update it.
     return false;

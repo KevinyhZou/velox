@@ -28,7 +28,7 @@ class StateDescriptor {
     return name_;
   }
 
-  int keyGroupNumber() const {
+  int32_t keyGroupNumber() const {
     return keyGroupNumber_;
   }
 
@@ -36,7 +36,7 @@ class StateDescriptor {
 
  private:
   const std::string name_;
-  int keyGroupNumber_ = 1024;
+  int32_t keyGroupNumber_ = 1024;
 };
 
 } // namespace facebook::velox::stateful

@@ -24,7 +24,7 @@ namespace facebook::velox::stateful {
 
 class TriggerContext;
 
-/// This class is relevent to flink WindowTrigger.
+/// This class is relevant to flink WindowTrigger.
 class WindowTrigger {
  public:
   virtual void open(std::shared_ptr<TriggerContext> ctx) = 0;

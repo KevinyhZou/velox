@@ -134,7 +134,7 @@ void StatefulTask::addOutput(StreamElementPtr output) {
   pendings_.push_back(std::move(output));
 }
 
-void StatefulTask::notifyWatermark(long watermark, int index) {
+void StatefulTask::notifyWatermark(int64_t watermark, int32_t index) {
   operatorChain_->processWatermark(watermark, index);
 }
 
@@ -148,11 +148,11 @@ void StatefulTask::snapshotState() {
   operatorChain_->snapshotState();
 }
 
-std::vector<std::string> StatefulTask::notifyCheckpointComplete(long checkpointId) {
+std::vector<std::string> StatefulTask::notifyCheckpointComplete(int64_t checkpointId) {
   return operatorChain_->notifyCheckpointComplete(checkpointId);
 }
 
-void StatefulTask::notifyCheckpointAborted(long checkpointId) {
+void StatefulTask::notifyCheckpointAborted(int64_t checkpointId) {
   operatorChain_->notifyCheckpointAborted(checkpointId);
 }
 

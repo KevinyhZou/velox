@@ -100,7 +100,7 @@ core::PlanNodePtr WatermarkAssignerNode::create(const folly::dynamic& obj, void*
       obj["project"], context);
   auto idleTimeout = obj["idleTimeout"].asInt();
   int rowtimeFieldIndex = obj["rowtimeFieldIndex"].asInt();
-  long watermarkInterval = obj["watermarkInterval"].asInt();
+  int64_t watermarkInterval = obj["watermarkInterval"].asInt();
 
   return std::make_shared<const WatermarkAssignerNode>(
       planNodeId, project, idleTimeout, rowtimeFieldIndex, watermarkInterval);

@@ -26,9 +26,9 @@ GroupWindowAggregator::GroupWindowAggregator(
     std::unique_ptr<SliceAssigner> sliceAssigner,
     int64_t allowedLateness,
     bool produceUpdates,
-    int rowtimeIndex,
+    int32_t rowtimeIndex,
     bool isEventTime,
-    int shiftTimeZone)
+    int32_t shiftTimeZone)
     : StatefulOperator(std::move(windowAggerator), std::move(targets)),
       windowAssigner_(std::move(windowAssigner)),
       keySelector_(std::move(keySelector)),
@@ -87,7 +87,9 @@ void GroupWindowAggregator::getOutput() {
     // 2. Set the current key in the context
     windowContext_->setCurrentKey(key);
     // 3. Partition the keyed data by rowtime or processing time
-    std::map<int64_t, RowVectorPtr> timestampToData = sliceAssigner_->assignSliceEnd(keyedData);
+    /// TODO: Extract event time when it is event-time window.
+    int64_t currentTime = isEventTime_ ? 0 : TimeWindowUtil::getCurrentProcessingTime();
+    std::map<int64_t, RowVectorPtr> timestampToData = sliceAssigner_->assignSliceEnd(currentTime, keyedData);
     for (const auto& [timestamp, data] : timestampToData) {
       // 4. Assign data to window
       std::vector<TimeWindow> windows = 
@@ -180,7 +182,7 @@ void GroupWindowAggregator::emitWindowResult(uint32_t key, TimeWindow window) {
 GroupWindowAggregator::WindowTriggerContext::WindowTriggerContext(
     std::shared_ptr<WindowTrigger> trigger,
     std::shared_ptr<InternalTimerService<uint32_t, TimeWindow>> internalTimerService,
-    int shiftTimeZone)
+    int32_t shiftTimeZone)
     : trigger_(std::move(trigger)),
       internalTimerService_(std::move(internalTimerService)),
       shiftTimeZone_(shiftTimeZone) {}
@@ -237,7 +239,7 @@ void GroupWindowAggregator::WindowTriggerContext::deleteEventTimeTimer(
   internalTimerService_->deleteEventTimeTimer(key, window, time);
 }
 
-int GroupWindowAggregator::WindowTriggerContext::getShiftTimeZone() {
+int32_t GroupWindowAggregator::WindowTriggerContext::getShiftTimeZone() {
   return shiftTimeZone_;
 }
 
@@ -263,7 +265,7 @@ WindowContext::WindowContext(
     std::shared_ptr<InternalTimerService<uint32_t, TimeWindow>> timerService,
     std::shared_ptr<TriggerContext> triggerContext,
     std::shared_ptr<StreamOperatorStateHandler> stateHandler,
-    int shiftTimeZone,
+    int32_t shiftTimeZone,
     bool isEventTime,
     int64_t allowedLateness)
     : windowAggregator_(windowAggregator),
@@ -288,7 +290,7 @@ int64_t WindowContext::currentWatermark() {
   return timerService_->currentWatermark();
 }
 
-int WindowContext::getShiftTimeZone() {
+int32_t WindowContext::getShiftTimeZone() {
   return shiftTimeZone_;
 }
 

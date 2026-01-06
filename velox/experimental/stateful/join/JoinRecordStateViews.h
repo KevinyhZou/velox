@@ -29,7 +29,7 @@ class JoinRecordStateViews {
       std::string stateName,
       // JoinInputSideSpec inputSideSpec,
       // InternalTypeInfo<RowData> recordType,
-      long retentionTime);
+      int64_t retentionTime);
 
 };
 
@@ -49,7 +49,7 @@ class InputSideHasNoUniqueKey : public JoinRecordStateView {
 
  private:
   std::shared_ptr<MapState<uint32_t, int, RowVectorPtr, int>> recordState_;
-  const int ns_ = 0; // For join, namespace is all same, just use 0.
+  const int32_t ns_ = 0; // For join, namespace is all same, just use 0.
 };
 
 } // namespace facebook::velox::stateful

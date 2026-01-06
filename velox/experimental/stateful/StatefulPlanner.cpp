@@ -48,6 +48,7 @@
 #include "velox/experimental/stateful/KeySelector.h"
 #include "velox/experimental/stateful/LocalWindowAggregator.h"
 #include "velox/experimental/stateful/StatefulPlanner.h"
+#include <experimental/stateful/window/SliceAssigner.h>
 #include "velox/experimental/stateful/StatefulPlanNode.h"
 #include "velox/experimental/stateful/StreamPartition.h"
 #include "velox/experimental/stateful/StreamJoin.h"
@@ -174,7 +175,7 @@ StatefulOperatorPtr StatefulPlanner::nodeToStatefulOperator(
     } else {
       auto localAggregator = windowAggNode->isEventTime() ? nodeToOperator(windowAggNode->localAgg(), ctx) : nullptr;
       std::unique_ptr<SliceAssigner> globalSliceAssigner =
-          std::make_unique<SliceAssigner>(
+          buildSliceAssigner(
               std::move(sliceAssigner),
               windowAggNode->size(),
               windowAggNode->step(),
@@ -205,7 +206,7 @@ StatefulOperatorPtr StatefulPlanner::nodeToStatefulOperator(
             std::move(windowAggNode->sliceAssignerSpec()->create(INT_MAX, true)),
             op->pool());
     std::unique_ptr<SliceAssigner> windowAssigner =
-        std::make_unique<SliceAssigner>(
+        buildSliceAssigner(
             std::move(sliceAssigner),
             0,
             0,

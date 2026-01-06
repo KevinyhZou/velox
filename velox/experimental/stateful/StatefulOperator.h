@@ -44,15 +44,15 @@ class StatefulOperator {
 
   virtual void close();
 
-  void processWatermark(long timestamp, int index);
+  void processWatermark(int64_t timestamp, int32_t index);
 
   void initializeState(StateBackend* stateBackend);
 
   void snapshotState();
 
-  std::vector<std::string> notifyCheckpointComplete(long checkpointId);
+  std::vector<std::string> notifyCheckpointComplete(int64_t checkpointId);
 
-  void notifyCheckpointAborted(long checkpointId);
+  void notifyCheckpointAborted(int64_t checkpointId);
 
   StreamOperatorStateHandlerPtr stateHandler() const {
     return stateHandler_;
@@ -81,10 +81,10 @@ class StatefulOperator {
 
  protected:
   void pushOutput(RowVectorPtr output);
-  void pushWatermark(long timestamp, int index);
-  virtual void processWatermarkInternal(long timestamp) {}
+  void pushWatermark(int64_t timestamp, int32_t index);
+  virtual void processWatermarkInternal(int64_t timestamp) {}
 
-  virtual int numInputs() const {
+  virtual int32_t numInputs() const {
     return 1;
   }
 

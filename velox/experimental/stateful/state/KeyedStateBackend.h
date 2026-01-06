@@ -30,27 +30,27 @@ namespace facebook::velox::stateful {
 // This class is relevent to flink org.apache.flink.runtime.state.KeyedStateBackend.
 class KeyedStateBackend : public Snapshotable, public CheckpointListener {
  public:
-  virtual std::shared_ptr<MapState<uint32_t, int, RowVectorPtr, int>>
+  virtual std::shared_ptr<MapState<uint32_t, int32_t, RowVectorPtr, int32_t>>
       getOrCreateMapState(StateDescriptor& stateDescriptor) = 0;
 
-  virtual std::shared_ptr<ListState<uint32_t, long, RowVectorPtr>>
+  virtual std::shared_ptr<ListState<uint32_t, int64_t, RowVectorPtr>>
       getOrCreateListState(StateDescriptor& stateDescriptor) = 0;
 
-  virtual std::shared_ptr<ValueState<uint32_t, long, RowVectorPtr>>
+  virtual std::shared_ptr<ValueState<uint32_t, int64_t, RowVectorPtr>>
       getOrCreateValueState(StateDescriptor& stateDescriptor) = 0;
 
   virtual std::shared_ptr<ValueState<uint32_t, TimeWindow, RowVectorPtr>>
       getOrCreateGroupValueState(StateDescriptor& stateDescriptor) = 0;
 
-  virtual std::shared_ptr<MapState<uint32_t, int, TimeWindow, TimeWindow>>
+  virtual std::shared_ptr<MapState<uint32_t, int32_t, TimeWindow, TimeWindow>>
       getOrCreateGroupMapState(StateDescriptor& stateDescriptor) = 0;
 
-  virtual std::shared_ptr<MapState<uint32_t, int, uint32_t, RowVectorPtr>>
+  virtual std::shared_ptr<MapState<uint32_t, int32_t, uint32_t, RowVectorPtr>>
       getOrCreateRankMapState(StateDescriptor& stateDescriptor) = 0;
 
   // TODO: Flink create PriorityQueue.
-  virtual std::shared_ptr<InternalTimerService<uint32_t, long>>
-      createTimerService(Triggerable<uint32_t, long>* triggerable) = 0;
+  virtual std::shared_ptr<InternalTimerService<uint32_t, int64_t>>
+      createTimerService(Triggerable<uint32_t, int64_t>* triggerable) = 0;
 
   virtual std::shared_ptr<InternalTimerService<uint32_t, TimeWindow>>
       createGroupWindowAggTimerService(Triggerable<uint32_t, TimeWindow>* triggerable) = 0;

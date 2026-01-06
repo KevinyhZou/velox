@@ -94,7 +94,7 @@ RowVectorPtr LocalWindowAggregator::addWindowEndToVector(RowVectorPtr vector, in
   auto newColumn = BaseVector::create(BIGINT(), vector->size(), vector->pool());
   auto windowEndCol = newColumn->as<FlatVector<int64_t>>();
 
-  for (int i = 0; i < vector->size(); ++i) {
+  for (int32_t i = 0; i < vector->size(); ++i) {
     windowEndCol->set(i, sliceEnd);
   }
 

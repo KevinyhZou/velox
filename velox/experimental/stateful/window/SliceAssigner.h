@@ -15,41 +15,148 @@
  */
 #pragma once
 
+#include <memory>
 #include "velox/experimental/stateful/KeySelector.h"
 #include "velox/experimental/stateful/window/Window.h"
 
 namespace facebook::velox::stateful {
 
+class WindowAssigner {
+public:
+  virtual bool isEventTime() = 0;
+};
+
 /// This class is relevent to flink SliceAssginer.
-class SliceAssigner {
- public:
-  SliceAssigner(
-      std::unique_ptr<KeySelector>  keySelector,
-      int64_t size,
-      int64_t step,
-      int64_t offset,
-      WindowType windowType,
-      int rowtimeIndex);
+class SliceAssigner : public WindowAssigner {
+public:
+ SliceAssigner(
+    std::unique_ptr<KeySelector> keySelector,
+    int64_t size,
+    int64_t offset,
+    WindowType windowType,
+    int rowtimeIndex)
+    : WindowAssigner(), keySelector_(std::move(keySelector)),
+      size_(size),
+      offset_(offset),
+      windowType_(windowType),
+      rowtimeIndex_(rowtimeIndex) {}
 
-  std::map<int64_t, RowVectorPtr> assignSliceEnd(const RowVectorPtr& input);
+  virtual std::map<int64_t, RowVectorPtr> assignSliceEnd(const int64_t timestampMs, const RowVectorPtr& input) {
+    return {{}};
+  }
 
-  int64_t getLastWindowEnd(int64_t sliceEnd);
+  virtual int64_t getLastWindowEnd(int64_t sliceEnd) {
+    return 0;
+  }
 
-  int64_t getWindowStart(int64_t windowEnd);
+  virtual int64_t getWindowStart(int64_t windowEnd) {
+    return 0;
+  }
 
-  // Iterable<Long> expiredSlices(long windowEnd);
+  virtual std::list<int64_t> expiredSlices(int64_t windowEnd) {
+    return {};
+  }
 
-  int64_t getSliceEndInterval();
+  virtual int64_t getSliceEndInterval() {
+    return 0;
+  }
 
- private:
+  bool isEventTime() override {
+    return rowtimeIndex_ >= 0;
+  }
 
+  WindowType getWindowType() {
+    return windowType_;
+  }
+
+ protected:
   const std::unique_ptr<KeySelector> keySelector_;
   const int64_t size_;
-  const int64_t step_;
   const int64_t offset_;
   const WindowType windowType_;
-  int64_t sliceSize_;
-  int rowtimeIndex_;
+  int32_t rowtimeIndex_;
 };
+
+class TumblingSliceAssigner : public SliceAssigner {
+public:
+  TumblingSliceAssigner(
+    std::unique_ptr<KeySelector> keySelector,
+    int64_t size,
+    int64_t offset,
+    int32_t rowtimeIndex);
+  
+  std::list<int64_t> expiredSlices(int64_t windowEnd) override;
+
+  std::map<int64_t, RowVectorPtr> assignSliceEnd(const int64_t timestampMs, const RowVectorPtr& input) override;
+
+  int64_t getLastWindowEnd(int64_t sliceEnd) override;
+
+  int64_t getSliceEndInterval() override;
+
+  int64_t getWindowStart(int64_t windowEnd) override;
+};
+
+class SharedSliceAssigner : public SliceAssigner {
+public:
+  SharedSliceAssigner(
+    std::unique_ptr<KeySelector> keySelector,
+    int64_t size,
+    int64_t step,
+    int64_t offset,
+    WindowType windowType,
+    int32_t rowtimeIndex);
+
+  std::map<int64_t, RowVectorPtr> assignSliceEnd(const int64_t timestampMs, const RowVectorPtr& input) override;
+
+  int64_t getSliceEndInterval() override;
+
+protected:
+    int64_t step_;
+    int64_t sliceSize_;
+};
+
+class HoppingSliceAssigner : public SharedSliceAssigner {
+public:
+  HoppingSliceAssigner(
+    std::unique_ptr<KeySelector> keySelector,
+    int64_t size,
+    int64_t step,
+    int64_t offset,
+    int32_t rowtimeIndex);
+  
+  std::list<int64_t> expiredSlices(int64_t windowEnd) override;
+
+  int64_t getLastWindowEnd(int64_t sliceEnd) override;
+
+  int64_t getWindowStart(int64_t windowEnd) override;
+};
+
+class CumulativeSliceAssigner : public SharedSliceAssigner {
+public:
+  CumulativeSliceAssigner(
+    std::unique_ptr<KeySelector> keySelector,
+    int64_t size,
+    int64_t maxSize,
+    int64_t step,
+    int64_t offset,
+    int rowtimeIndex);
+
+  std::list<int64_t> expiredSlices(int64_t windowEnd) override;
+
+  int64_t getLastWindowEnd(int64_t sliceEnd) override;
+
+  int64_t getWindowStart(int64_t windowEnd) override;
+
+private:
+    int64_t maxSize_;
+};
+
+std::unique_ptr<SliceAssigner> buildSliceAssigner(
+  std::unique_ptr<KeySelector> keySelector,
+  int64_t size,
+  int64_t step,
+  int64_t offset,
+  WindowType windowType,
+  int64_t rowtimeIndex);
 
 } // namespace facebook::velox::stateful

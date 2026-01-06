@@ -20,9 +20,9 @@ namespace facebook::velox::stateful {
 WatermarkAssigner::WatermarkAssigner(
     std::unique_ptr<exec::Operator> op,
     std::vector<std::unique_ptr<StatefulOperator>> targets,
-    const long idleTimeout,
-    const int rowtimeFieldIndex,
-    const long watermarkInterval)
+    const int64_t idleTimeout,
+    const int32_t rowtimeFieldIndex,
+    const int64_t watermarkInterval)
     : StatefulOperator(std::move(op), std::move(targets)),
       idleTimeout_(idleTimeout),
       rowtimeFieldIndex_(rowtimeFieldIndex),
@@ -39,10 +39,10 @@ void WatermarkAssigner::getOutput() {
     return;
   }
 
-  for (int i = 0; i < input_->size(); i++) {
+  for (int32_t i = 0; i < input_->size(); i++) {
     VELOX_CHECK(
       !input_->childAt(rowtimeFieldIndex_)->isNullAt(i),
-      "RowTime field should not be null, please convert it to a non-null long value.");
+      "RowTime field should not be null, please convert it to a non-null int64_t value.");
   }
   RowVectorPtr timestamps = op()->getOutput();
 
@@ -51,8 +51,8 @@ void WatermarkAssigner::getOutput() {
     "Timestamps are not equal to input.");
 
   auto timestamp = timestamps->childAt(0)->asFlatVector<int64_t>();
-  int lastIndex = 0;
-  for (int i = 0; i < timestamps->size(); i++) {
+  int32_t lastIndex = 0;
+  for (int32_t i = 0; i < timestamps->size(); i++) {
     currentWatermark = std::max(currentWatermark, timestamp->valueAt(0));
     if (currentWatermark - lastWatermark > watermarkInterval_) {
       auto output = std::dynamic_pointer_cast<RowVector>(input_->slice(lastIndex, i - lastIndex + 1));

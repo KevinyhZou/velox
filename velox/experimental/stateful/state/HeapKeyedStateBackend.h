@@ -23,38 +23,38 @@ namespace facebook::velox::stateful {
 class HeapKeyedStateBackend: public KeyedStateBackend {
  public:
   // TODO: use template to support different key type.
-  std::shared_ptr<MapState<uint32_t, int, RowVectorPtr, int>>
+  std::shared_ptr<MapState<uint32_t, int32_t, RowVectorPtr, int32_t>>
       getOrCreateMapState(StateDescriptor& stateDescriptor) override;
 
-  std::shared_ptr<ListState<uint32_t, long, RowVectorPtr>>
+  std::shared_ptr<ListState<uint32_t, int64_t, RowVectorPtr>>
       getOrCreateListState(StateDescriptor& stateDescriptor) override;
 
-  std::shared_ptr<ValueState<uint32_t, long, RowVectorPtr>>
+  std::shared_ptr<ValueState<uint32_t, int64_t, RowVectorPtr>>
       getOrCreateValueState(StateDescriptor& stateDescriptor) override;
 
-  std::shared_ptr<InternalTimerService<uint32_t, long>>
-      createTimerService(Triggerable<uint32_t, long>* triggerable) override;
+  std::shared_ptr<InternalTimerService<uint32_t, int64_t>>
+      createTimerService(Triggerable<uint32_t, int64_t>* triggerable) override;
 
   std::shared_ptr<ValueState<uint32_t, TimeWindow, RowVectorPtr>>
       getOrCreateGroupValueState(StateDescriptor& stateDescriptor) override;
 
-  std::shared_ptr<MapState<uint32_t, int, TimeWindow, TimeWindow>>
+  std::shared_ptr<MapState<uint32_t, int32_t, TimeWindow, TimeWindow>>
       getOrCreateGroupMapState(StateDescriptor& stateDescriptor) override;
 
-  std::shared_ptr<MapState<uint32_t, int, uint32_t, RowVectorPtr>>
+  std::shared_ptr<MapState<uint32_t, int32_t, uint32_t, RowVectorPtr>>
       getOrCreateRankMapState(StateDescriptor& stateDescriptor) override;
 
   virtual std::shared_ptr<InternalTimerService<uint32_t, TimeWindow>>
       createGroupWindowAggTimerService(Triggerable<uint32_t, TimeWindow>* triggerable) override;
 
   void snapshot(
-      long checkpointId,
-      long timestamp,
+      int64_t checkpointId,
+      int64_t timestamp,
       CheckpointOptions checkpointOptions) override;
 
-  void notifyCheckpointComplete(long checkpointId) override;
+  void notifyCheckpointComplete(int64_t checkpointId) override;
 
-  void notifyCheckpointAborted(long checkpointId) override;
+  void notifyCheckpointAborted(int64_t checkpointId) override;
 
  private:
   std::map<std::string, StatePtr> keyValueStatesByName_;

@@ -23,4 +23,5 @@ velox_add_library(
   WindowProcessFunction.cpp
   GroupWindowAggsHandler.cpp
   WindowTrigger.cpp
-  TimeWindowUtil.cpp)
+  TimeWindowUtil.cpp
+  WindowProcessor.cpp)

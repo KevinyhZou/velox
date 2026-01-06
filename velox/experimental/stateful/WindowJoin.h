@@ -26,7 +26,7 @@
 
 namespace facebook::velox::stateful {
 
-class WindowJoin : public StatefulOperator, public Triggerable<uint32_t, long> {
+class WindowJoin : public StatefulOperator, public Triggerable<uint32_t, int64_t> {
  public:
   WindowJoin(
       std::unique_ptr<exec::Operator> leftInput,
@@ -35,8 +35,8 @@ class WindowJoin : public StatefulOperator, public Triggerable<uint32_t, long> {
       std::unique_ptr<KeySelector> rightKeySelector,
       std::unique_ptr<exec::Operator> probe,
       std::vector<std::unique_ptr<StatefulOperator>> targets,
-      int leftWindowEndIndex,
-      int rightWindowEndIndex);
+      int32_t leftWindowEndIndex,
+      int32_t rightWindowEndIndex);
 
   void initialize() override;
 
@@ -52,38 +52,38 @@ class WindowJoin : public StatefulOperator, public Triggerable<uint32_t, long> {
     return "WindowJoin";
   }
 
-  void onEventTime(std::shared_ptr<TimerHeapInternalTimer<uint32_t, long>> timer) override;
+  void onEventTime(std::shared_ptr<TimerHeapInternalTimer<uint32_t, int64_t>> timer) override;
 
  protected:
-  int numInputs() const override {
+  int32_t numInputs() const override {
     return 2;
   }
 
  private:
-  void join(uint32_t key, long windowEnd);
+  void join(uint32_t key, int64_t windowEnd);
 
-  void processWatermarkInternal(long timestamp) override;
+  void processWatermarkInternal(int64_t timestamp) override;
 
   void processData(
       exec::Operator* input,
       KeySelector* keySelector,
-      int windowEndIndex,
-      ListState<uint32_t, long, RowVectorPtr>* state);
+      int32_t windowEndIndex,
+      ListState<uint32_t, int64_t, RowVectorPtr>* state);
 
   RowVectorPtr filterWindowFiredRows(RowVectorPtr& input);
 
-  std::map<long, RowVectorPtr> partitionWindowData(RowVectorPtr& input, int windowEndIndex);
+  std::map<int64_t, RowVectorPtr> partitionWindowData(RowVectorPtr& input, int32_t windowEndIndex);
 
   const std::unique_ptr<exec::Operator> leftInput_;
   const std::unique_ptr<exec::Operator> rightInput_;
   const std::unique_ptr<KeySelector> leftKeySelector_;
   const std::unique_ptr<KeySelector> rightKeySelector_;
   exec::NestedLoopJoinProbe* probe_;
-  std::shared_ptr<ListState<uint32_t, long, RowVectorPtr>> leftWindowState_;
-  std::shared_ptr<ListState<uint32_t, long, RowVectorPtr>> rightWindowState_;
-  const int leftWindowEndIndex_;
-  const int rightWindowEndIndex_;
-  std::shared_ptr<InternalTimerService<uint32_t, long>> timerService_;
+  std::shared_ptr<ListState<uint32_t, int64_t, RowVectorPtr>> leftWindowState_;
+  std::shared_ptr<ListState<uint32_t, int64_t, RowVectorPtr>> rightWindowState_;
+  const int32_t leftWindowEndIndex_;
+  const int32_t rightWindowEndIndex_;
+  std::shared_ptr<InternalTimerService<uint32_t, int64_t>> timerService_;
 };
 
 } // namespace facebook::velox::stateful

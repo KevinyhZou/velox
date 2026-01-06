@@ -15,14 +15,15 @@
  */
 #pragma once
 
+#include <cstdint>
 namespace facebook::velox::stateful {
 
 // This class is relevent to flink CheckpointListener.
 class CheckpointListener {
  public:
-  virtual void notifyCheckpointComplete(long checkpointId) = 0;
+  virtual void notifyCheckpointComplete(int64_t checkpointId) = 0;
 
-  virtual void notifyCheckpointAborted(long checkpointId) = 0;
+  virtual void notifyCheckpointAborted(int64_t checkpointId) = 0;
 };
 
 } // namespace facebook::velox::stateful

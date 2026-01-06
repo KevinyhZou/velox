@@ -22,7 +22,7 @@ GroupAggregator::GroupAggregator(
     exec::DriverCtx* driverCtx,
     const std::shared_ptr<const core::PlanNode>& aggNode,
     std::unique_ptr<AggsHandleFunction> aggsFunction,
-    long stateRetentionTime,
+    int64_t stateRetentionTime,
     bool generateUpdateBefore)
     : exec::Operator(
       driverCtx,

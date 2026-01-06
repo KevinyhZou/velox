@@ -23,7 +23,7 @@ JoinRecordStateViewPtr JoinRecordStateViews::create(
     std::string stateName,
     //JoinInputSideSpec inputSideSpec,
     //InternalTypeInfo<RowData> recordType,
-    long retentionTime) {
+    int64_t retentionTime) {
   StateTtlConfig ttlConfig(retentionTime);
   return std::make_unique<InputSideHasNoUniqueKey>(stateHandler, stateName, ttlConfig);
 }
@@ -42,7 +42,7 @@ InputSideHasNoUniqueKey::InputSideHasNoUniqueKey(
 }
 
 void InputSideHasNoUniqueKey::addRecord(uint32_t key, RowVectorPtr record) {
-  int cnt = recordState_->get(key, ns_, record);
+  int32_t cnt = recordState_->get(key, ns_, record);
   if (cnt != -1) {
       cnt += 1;
   } else {

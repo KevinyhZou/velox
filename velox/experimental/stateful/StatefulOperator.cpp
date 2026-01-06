@@ -66,7 +66,7 @@ void StatefulOperator::pushOutput(RowVectorPtr output) {
     task->addOutput(std::make_shared<StreamRecord>(outNodeId, std::move(output)));
     return;
   }
-  for (int i = 0; i < targets_.size() - 1; i++) {
+  for (int32_t i = 0; i < targets_.size() - 1; i++) {
     auto copy = output;
     targets_[i]->addInput(std::move(copy));
     targets_[i]->getOutput();
@@ -75,7 +75,7 @@ void StatefulOperator::pushOutput(RowVectorPtr output) {
   targets_[targets_.size() - 1]->getOutput();
 }
 
-void StatefulOperator::pushWatermark(long timestamp, int index) {
+void StatefulOperator::pushWatermark(int64_t timestamp, int32_t index) {
   if (isSink())
     return;
   if (targets_.empty()) {
@@ -86,15 +86,15 @@ void StatefulOperator::pushWatermark(long timestamp, int index) {
     }
     return;
   }
-  for (int i = 0; i < targets_.size(); i++) {
+  for (int32_t i = 0; i < targets_.size(); i++) {
     targets_[i]->processWatermark(timestamp, index);
   }
 }
 
-void StatefulOperator::processWatermark(long timestamp, int index) {
+void StatefulOperator::processWatermark(int64_t timestamp, int32_t index) {
   if (combinedWatermarkStatus_->updateWatermark(index - 1, timestamp)) {
     // If the watermark is updated, we need to advance the timer service.
-    long combinedWatermark = combinedWatermarkStatus_->getCombinedWatermark();
+    int64_t combinedWatermark = combinedWatermarkStatus_->getCombinedWatermark();
     processWatermarkInternal(combinedWatermark);
     pushWatermark(combinedWatermark, 1);
   }
@@ -135,7 +135,7 @@ void StatefulOperator::snapshotState() {
   }
 }
 
-std::vector<std::string> StatefulOperator::notifyCheckpointComplete(long checkpointId) {
+std::vector<std::string> StatefulOperator::notifyCheckpointComplete(int64_t checkpointId) {
   stateHandler_->notifyCheckpointComplete(checkpointId);
   auto checkpointListener = dynamic_cast<CheckpointListener*>(op().get());
   if (checkpointListener) {
@@ -150,7 +150,7 @@ std::vector<std::string> StatefulOperator::notifyCheckpointComplete(long checkpo
   return committed;
 }
 
-void StatefulOperator::notifyCheckpointAborted(long checkpointId) {
+void StatefulOperator::notifyCheckpointAborted(int64_t checkpointId) {
   stateHandler_->notifyCheckpointAborted(checkpointId);
   auto checkpointListener = dynamic_cast<CheckpointListener*>(op().get());
   if (checkpointListener) {

@@ -22,8 +22,8 @@ RowTimeDeduplicateRanker::RowTimeDeduplicateRanker(
     int32_t operatorId,
     exec::DriverCtx* driverCtx,
     const std::shared_ptr<const core::PlanNode>& rankNode,
-    long minRetentionTime,
-    int rowtimeIndex,
+    int64_t minRetentionTime,
+    int32_t rowtimeIndex,
     bool generateUpdateBefore,
     bool generateInsert,
     bool keepLastRow)
@@ -55,8 +55,8 @@ RowVectorPtr RowTimeDeduplicateRanker::processElements(uint32_t key, RowVectorPt
   // but we only generate output once a batch.
   RowVectorPtr preRow = state_->value(key, State::VOID_NAMESPACE);
   RowVectorPtr output = nullptr;
-  int index = 0;
-  int outputIndex = -1;
+  int32_t index = 0;
+  int32_t outputIndex = -1;
   if (!preRow) {
     preRow = std::dynamic_pointer_cast<RowVector>(input->slice(0, 1));
     index = 1;

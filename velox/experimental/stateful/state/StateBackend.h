@@ -33,20 +33,20 @@ class StateBackend : public ISerializable {
 
 class KeyedStateBackendParameters {
  public:
-  KeyedStateBackendParameters(const std::string& jobId, int operatorId)
+  KeyedStateBackendParameters(const std::string& jobId, int32_t operatorId)
       : jobId_(jobId), operatorId_(operatorId) {}
 
   std::string getJobId() {
     return jobId_;
   }
 
-  int getOperatorIdentifier() {
+  int32_t getOperatorIdentifier() {
     return operatorId_;
   }
 
  private:
   const std::string jobId_;
-  int operatorId_;
+  int32_t operatorId_;
 };
 
 } // namespace facebook::velox::stateful

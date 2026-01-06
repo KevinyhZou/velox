@@ -15,7 +15,6 @@
  */
 #include "velox/experimental/stateful/window/WindowBuffer.h"
 #include "velox/experimental/stateful/window/TimeWindowUtil.h"
-
 #include <climits>
 
 namespace facebook::velox::stateful {

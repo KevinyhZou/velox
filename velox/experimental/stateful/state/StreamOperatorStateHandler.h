@@ -25,7 +25,7 @@ namespace facebook::velox::stateful {
  */
 class StreamOperatorStateHandler {
  public:
-  StreamOperatorStateHandler(int operatorId, KeyedStateBackendPtr keyedStateBackend)
+  StreamOperatorStateHandler(int32_t operatorId, KeyedStateBackendPtr keyedStateBackend)
       : operatorId_(operatorId),
         keyedStateBackend_(std::move(keyedStateBackend)) {}
 
@@ -38,26 +38,26 @@ class StreamOperatorStateHandler {
         operatorId_, 0, CheckpointOptions::defaultOptions());
   }
 
-  void notifyCheckpointComplete(long checkpointId) {
+  void notifyCheckpointComplete(int64_t checkpointId) {
     keyedStateBackend_->notifyCheckpointComplete(checkpointId);
   }
 
-  void notifyCheckpointAborted(long checkpointId) {
+  void notifyCheckpointAborted(int64_t checkpointId) {
     keyedStateBackend_->notifyCheckpointAborted(checkpointId);
   }
 
   // The type of state has to be specified as c++ not support template well.
-  std::shared_ptr<MapState<uint32_t, int, RowVectorPtr, int>> getMapState(
+  std::shared_ptr<MapState<uint32_t, int32_t, RowVectorPtr, int32_t>> getMapState(
       StateDescriptor& stateDescriptor) {
     return keyedStateBackend_->getOrCreateMapState(stateDescriptor);
   }
 
-  std::shared_ptr<ListState<uint32_t, long, RowVectorPtr>> getListState(
+  std::shared_ptr<ListState<uint32_t, int64_t, RowVectorPtr>> getListState(
       StateDescriptor& stateDescriptor) {
     return keyedStateBackend_->getOrCreateListState(stateDescriptor);
   }
 
-  std::shared_ptr<ValueState<uint32_t, long, RowVectorPtr>> getValueState(
+  std::shared_ptr<ValueState<uint32_t, int64_t, RowVectorPtr>> getValueState(
       StateDescriptor& stateDescriptor) {
     return keyedStateBackend_->getOrCreateValueState(stateDescriptor);
   }
@@ -67,18 +67,18 @@ class StreamOperatorStateHandler {
     return keyedStateBackend_->getOrCreateGroupValueState(stateDescriptor);
   }
 
-  std::shared_ptr<MapState<uint32_t, int, TimeWindow, TimeWindow>> getGroupMapState(
+  std::shared_ptr<MapState<uint32_t, int32_t, TimeWindow, TimeWindow>> getGroupMapState(
       StateDescriptor& stateDescriptor) {
     return keyedStateBackend_->getOrCreateGroupMapState(stateDescriptor);
   }
 
-  std::shared_ptr<MapState<uint32_t, int, uint32_t, RowVectorPtr>> getRankMapState(
+  std::shared_ptr<MapState<uint32_t, int32_t, uint32_t, RowVectorPtr>> getRankMapState(
       StateDescriptor& stateDescriptor) {
     return keyedStateBackend_->getOrCreateRankMapState(stateDescriptor);
   }
 
-  std::shared_ptr<InternalTimerService<uint32_t, long>> createTimerService(
-      Triggerable<uint32_t, long>* triggerable) {
+  std::shared_ptr<InternalTimerService<uint32_t, int64_t>> createTimerService(
+      Triggerable<uint32_t, int64_t>* triggerable) {
     return keyedStateBackend_->createTimerService(triggerable);
   }
 

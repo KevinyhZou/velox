@@ -66,9 +66,9 @@ class WatermarkAssignerNode :  public core::PlanNode {
   WatermarkAssignerNode(
       const core::PlanNodeId& id,
       std::shared_ptr<const core::ProjectNode>& project,
-      long idleTimeout,
-      int rowtimeFieldIndex,
-      long watermarkInterval)
+      int64_t idleTimeout,
+      int32_t rowtimeFieldIndex,
+      int64_t watermarkInterval)
       : PlanNode(id),
         project_(std::move(project)),
         idleTimeout_(idleTimeout),
@@ -93,15 +93,15 @@ class WatermarkAssignerNode :  public core::PlanNode {
     return project_;
   }
 
-  const long idleTimeout() const {
+  const int64_t idleTimeout() const {
     return idleTimeout_;
   }
 
-  const int rowtimeFieldIndex() const {
+  const int32_t rowtimeFieldIndex() const {
     return rowtimeFieldIndex_;
   }
 
-  const long watermarkInterval() const {
+  const int64_t watermarkInterval() const {
     return watermarkInterval_;
   }
 
@@ -109,9 +109,9 @@ class WatermarkAssignerNode :  public core::PlanNode {
   void addDetails(std::stringstream& stream) const override;
 
   const std::shared_ptr<const core::ProjectNode> project_;
-  const long idleTimeout_;
-  const int rowtimeFieldIndex_;
-  const long watermarkInterval_;
+  const int64_t idleTimeout_;
+  const int32_t rowtimeFieldIndex_;
+  const int64_t watermarkInterval_;
 };
 
 class StreamJoinNode :  public core::PlanNode {
@@ -123,7 +123,7 @@ class StreamJoinNode :  public core::PlanNode {
       const std::shared_ptr<const core::PartitionFunctionSpec>& rightPartFuncSpec,
       const std::shared_ptr<const core::NestedLoopJoinNode>& probe,
       RowTypePtr outputType,
-      int numPartitions)
+      int32_t numPartitions)
       : core::PlanNode(id),
         sources_(std::move(sources)),
         leftPartFuncSpec_(std::move(leftPartFuncSpec)),
@@ -156,7 +156,7 @@ class StreamJoinNode :  public core::PlanNode {
     return probe_;
   }
 
-  const int numPartitions() const {
+  const int32_t numPartitions() const {
     return numPartitions_;
   }
 
@@ -172,7 +172,7 @@ class StreamJoinNode :  public core::PlanNode {
   const std::shared_ptr<const core::PartitionFunctionSpec> rightPartFuncSpec_;
   const std::shared_ptr<const core::NestedLoopJoinNode> probe_;
   const RowTypePtr outputType_;
-  const int numPartitions_;
+  const int32_t numPartitions_;
 };
 
 // Generate hash for RowVector to exchange by key.
@@ -181,7 +181,7 @@ class StreamPartitionNode : public core::PlanNode {
   StreamPartitionNode(
       const core::PlanNodeId& id,
       std::shared_ptr<const core::LocalPartitionNode>& partitionNode,
-      int numPartitions) :
+      int32_t numPartitions) :
         PlanNode(id),
         partition_(std::move(partitionNode)),
         numPartitions_(numPartitions) {}
@@ -190,7 +190,7 @@ class StreamPartitionNode : public core::PlanNode {
     return partition_->outputType();
   }
 
-  const int numPartitions() const {
+  const int32_t numPartitions() const {
     return numPartitions_;
   }
 
@@ -212,7 +212,7 @@ class StreamPartitionNode : public core::PlanNode {
   void addDetails(std::stringstream& stream) const override {}
 
   const std::shared_ptr<const core::LocalPartitionNode> partition_;
-  const int numPartitions_;
+  const int32_t numPartitions_;
 };
 
 // Only used to make other PlanNode sources valid.
@@ -251,9 +251,9 @@ class StreamWindowJoinNode :  public core::PlanNode {
       const std::shared_ptr<const core::PartitionFunctionSpec>& rightPartFuncSpec,
       const std::shared_ptr<const core::NestedLoopJoinNode>& probe,
       RowTypePtr outputType,
-      int numPartitions,
-      int leftWindowEndIndex,
-      int rightWindowEndIndex)
+      int32_t numPartitions,
+      int32_t leftWindowEndIndex,
+      int32_t rightWindowEndIndex)
       : core::PlanNode(id),
         sources_(std::move(sources)),
         leftPartFuncSpec_(std::move(leftPartFuncSpec)),
@@ -288,15 +288,15 @@ class StreamWindowJoinNode :  public core::PlanNode {
     return probe_;
   }
 
-  const int numPartitions() const {
+  const int32_t numPartitions() const {
     return numPartitions_;
   }
 
-  const int leftWindowEndIndex() const {
+  const int32_t leftWindowEndIndex() const {
     return leftWindowEndIndex_;
   }
 
-  const int rightWindowEndIndex() const {
+  const int32_t rightWindowEndIndex() const {
     return rightWindowEndIndex_;
   }
 
@@ -312,9 +312,9 @@ class StreamWindowJoinNode :  public core::PlanNode {
   const std::shared_ptr<const core::PartitionFunctionSpec> rightPartFuncSpec_;
   const std::shared_ptr<const core::NestedLoopJoinNode> probe_;
   const RowTypePtr outputType_;
-  const int numPartitions_;
-  const int leftWindowEndIndex_;
-  const int rightWindowEndIndex_;
+  const int32_t numPartitions_;
+  const int32_t leftWindowEndIndex_;
+  const int32_t rightWindowEndIndex_;
 };
 
 class StreamWindowAggregationNode : public core::PlanNode {
@@ -325,18 +325,18 @@ class StreamWindowAggregationNode : public core::PlanNode {
       std::shared_ptr<const core::AggregationNode>& localAgg,
       const std::shared_ptr<const core::PartitionFunctionSpec>& keySelectorSpec,
       const std::shared_ptr<const core::PartitionFunctionSpec>& sliceAssignerSpec,
-      long windowInterval,
+      int64_t windowInterval,
       bool useDayLightSaving,
       bool isLocalAgg,
-      long size,
-      long step,
-      long offset,
-      int windowType,
+      int64_t size,
+      int64_t step,
+      int64_t offset,
+      int32_t windowType,
       const RowTypePtr& outputType,
       bool isEventTime,
-      int rowtimeIndex,
-      int windowStartIndex,
-      int windowEndIndex) :
+      int32_t rowtimeIndex,
+      int32_t windowStartIndex,
+      int32_t windowEndIndex) :
         PlanNode(id),
         aggregation_(std::move(aggregationNode)),
         localAgg_(std::move(localAgg)),
@@ -375,7 +375,7 @@ class StreamWindowAggregationNode : public core::PlanNode {
     return sliceAssignerSpec_;
   }
 
-  long windowInterval() const {
+  int64_t windowInterval() const {
     return windowInterval_;
   }
 
@@ -387,19 +387,19 @@ class StreamWindowAggregationNode : public core::PlanNode {
     return isLocalAgg_;
   }
 
-  long size() const {
+  int64_t size() const {
     return size_;
   }
 
-  long step() const {
+  int64_t step() const {
     return step_;
   }
 
-  long offset() const {
+  int64_t offset() const {
     return offset_;
   }
 
-  int windowType() const {
+  int32_t windowType() const {
     return windowType_;
   }
 
@@ -407,15 +407,15 @@ class StreamWindowAggregationNode : public core::PlanNode {
     return isEventTime_;
   }
 
-  int rowtimeIndex() const {
+  int32_t rowtimeIndex() const {
     return rowtimeIndex_;
   }
 
-  int windowStartIndex() const {
+  int32_t windowStartIndex() const {
     return windowStartIndex_;
   }
 
-  int windowEndIndex() const {
+  int32_t windowEndIndex() const {
     return windowEndIndex_;
   }
 
@@ -436,18 +436,18 @@ class StreamWindowAggregationNode : public core::PlanNode {
   const std::shared_ptr<const core::AggregationNode> localAgg_;
   const std::shared_ptr<const core::PartitionFunctionSpec> keySelectorSpec_;
   const std::shared_ptr<const core::PartitionFunctionSpec> sliceAssignerSpec_;
-  long windowInterval_ = 0;
+  int64_t windowInterval_ = 0;
   bool useDayLightSaving_ = false;
   bool isLocalAgg_;
-  long size_;
-  long step_;
-  long offset_;
-  int windowType_;
+  int64_t size_;
+  int64_t step_;
+  int64_t offset_;
+  int32_t windowType_;
   const RowTypePtr outputType_;
   bool isEventTime_;
-  int rowtimeIndex_;
-  int windowStartIndex_;
-  int windowEndIndex_;
+  int32_t rowtimeIndex_;
+  int32_t windowStartIndex_;
+  int32_t windowEndIndex_;
 };
 
 class GroupWindowAggsHandlerNode : public core::PlanNode {
@@ -486,11 +486,11 @@ class GroupWindowAggregationNode : public core::PlanNode {
       std::shared_ptr<const GroupWindowAggsHandlerNode>& aggregationNode,
       const std::shared_ptr<const core::PartitionFunctionSpec>& keySelectorSpec,
       const std::shared_ptr<const core::PartitionFunctionSpec>& sliceAssignerSpec,
-      long allowedLateness,
+      int64_t allowedLateness,
       bool produceUpdates,
-      int rowtimeIndex,
+      int32_t rowtimeIndex,
       bool isEventTime,
-      int windowType,
+      int32_t windowType,
       const RowTypePtr& outputType) :
         PlanNode(id),
         aggregation_(std::move(aggregationNode)),
@@ -519,7 +519,7 @@ class GroupWindowAggregationNode : public core::PlanNode {
     return sliceAssignerSpec_;
   }
 
-  long allowedLateness() const {
+  int64_t allowedLateness() const {
     return allowedLateness_;
   }
 
@@ -531,11 +531,11 @@ class GroupWindowAggregationNode : public core::PlanNode {
     return isEventTime_;
   }
 
-  int windowType() const {
+  int32_t windowType() const {
     return windowType_;
   }
 
-  int rowtimeIndex() const {
+  int32_t rowtimeIndex() const {
     return rowtimeIndex_;
   }
 
@@ -555,11 +555,11 @@ class GroupWindowAggregationNode : public core::PlanNode {
   const std::shared_ptr<const GroupWindowAggsHandlerNode> aggregation_;
   const std::shared_ptr<const core::PartitionFunctionSpec> keySelectorSpec_;
   const std::shared_ptr<const core::PartitionFunctionSpec> sliceAssignerSpec_;
-  long allowedLateness_ = 0;
+  int64_t allowedLateness_ = 0;
   bool produceUpdates_;
-  int rowtimeIndex_;
+  int32_t rowtimeIndex_;
   bool isEventTime_;
-  int windowType_;
+  int32_t windowType_;
   const RowTypePtr outputType_;
 };
 
@@ -610,8 +610,8 @@ class DeduplicateNode :  public core::PlanNode {
   DeduplicateNode(
       const core::PlanNodeId& id,
       RowTypePtr outputType,
-      long minRetentionTime,
-      int rowtimeIndex,
+      int64_t minRetentionTime,
+      int32_t rowtimeIndex,
       bool generateUpdateBefore,
       bool generateInsert,
       bool keepLastRow)
@@ -633,11 +633,11 @@ class DeduplicateNode :  public core::PlanNode {
     return "Deduplicate";
   }
 
-  int rowtimeIndex() const {
+  int32_t rowtimeIndex() const {
     return rowtimeIndex_;
   }
 
-  long minRetentionTime() const {
+  int64_t minRetentionTime() const {
     return minRetentionTime_;
   }
 
@@ -661,8 +661,8 @@ class DeduplicateNode :  public core::PlanNode {
   void addDetails(std::stringstream& stream) const override;
 
   const RowTypePtr outputType_;
-  long minRetentionTime_;
-  int rowtimeIndex_;
+  int64_t minRetentionTime_;
+  int32_t rowtimeIndex_;
   bool generateUpdateBefore_;
   bool generateInsert_;
   bool keepLastRow_;
@@ -677,7 +677,7 @@ class StreamTopNNode :  public core::PlanNode {
       RowTypePtr outputType,
       bool generateUpdateBefore,
       bool outputRankNumber,
-      long cacheSize)
+      int64_t cacheSize)
       : core::PlanNode(id),
         topN_(std::move(topN)),
         sortKeySelectorSpec_(std::move(sortKeySelectorSpec)),
@@ -712,7 +712,7 @@ class StreamTopNNode :  public core::PlanNode {
     return outputRankNumber_;
   }
 
-  long cacheSize() const {
+  int64_t cacheSize() const {
     return cacheSize_;
   }
 
@@ -728,7 +728,7 @@ class StreamTopNNode :  public core::PlanNode {
   const RowTypePtr outputType_;
   bool generateUpdateBefore_;
   bool outputRankNumber_;
-  long cacheSize_;
+  int64_t cacheSize_;
 };
 
 class GroupAggsHandlerNode : public core::PlanNode {
