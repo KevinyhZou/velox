@@ -41,14 +41,11 @@ WindowAggregator::WindowAggregator(
       keySelector_(std::move(keySelector)),
       isEventTime_(isEventTime) {
   
-  StateDescriptor stateDesc("window-aggs");
-  auto windowState = stateHandler()->getValueState(stateDesc);
-  auto windowTimerService = stateHandler()->createTimerService(this);
   WindowBufferPtr windowBuffer = std::make_shared<RecordsWindowBuffer>();
   windowProcessor_ = stateful::buildWindowProgressor<uint32_t, int64_t>(
     std::move(sliceAssigner),
-    windowState,
-    windowTimerService,
+    nullptr,
+    nullptr,
     windowBuffer,
     0, 
     windowInterval, 
@@ -62,7 +59,11 @@ void WindowAggregator::initialize() {
   if (localAggregator_) {
     localAggregator_->initialize();
   }
-  /// TODO: initialize state here
+  StateDescriptor stateDesc("window-aggs");
+  auto windowState = stateHandler()->getValueState(stateDesc);
+  auto windowTimerService = stateHandler()->createTimerService(this);
+  windowProcessor_->setWindowState(windowState);
+  windowProcessor_->setWindowTimerService(windowTimerService);
 }
 
 void WindowAggregator::addInput(RowVectorPtr input) {

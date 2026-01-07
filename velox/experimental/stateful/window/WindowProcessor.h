@@ -61,6 +61,12 @@ public:
 
   virtual void advanceWatermark(int64_t progress) {};
 
+  void setWindowState(WindowStatePtr& windowState) {
+    windowState_ = windowState;
+  }
+
+  virtual void setWindowTimerService(std::shared_ptr<InternalTimerService<K, W>>& windowTimerService) {}
+
   // void prepareCheckpoint();
 
   virtual RowVectorPtr fireWindow(K key, int64_t timerTimestamp, W window, std::unique_ptr<exec::Operator>& op) {
@@ -80,7 +86,6 @@ public:
 protected:
   WindowBufferPtr windowBuffer_;
   WindowStatePtr windowState_;
-
 };
 
 template<typename K, typename W>
@@ -111,6 +116,8 @@ public:
     void close() override;
 
     void setWindowStartAndEnd(RowVectorPtr& data, W windowEnd);
+
+    void setWindowTimerService(std::shared_ptr<InternalTimerService<K, W>>& windowTimerService);
 
 protected:
   std::unique_ptr<SliceAssigner> sliceAssigner_;
@@ -155,9 +162,9 @@ public:
       const int32_t windowStartIndex,
       const int32_t windowEndIndex);
 
-     RowVectorPtr fireWindow(K key, int64_t timerTimestamp, W window, std::unique_ptr<exec::Operator>& op) override;
+    RowVectorPtr fireWindow(K key, int64_t timerTimestamp, W window, std::unique_ptr<exec::Operator>& op) override;
 
-     RowVectorPtr merge(K key, W mergeResult, std::list<W>& toBeMerged, std::unique_ptr<exec::Operator>& op);
+    RowVectorPtr merge(K key, W mergeResult, std::list<W>& toBeMerged, std::unique_ptr<exec::Operator>& op);
 };
 
 template<typename K, typename W>
@@ -171,8 +178,8 @@ public:
 template<typename K, typename W>
 std::shared_ptr<WindowProcessor<K, W>> buildWindowProgressor(
   std::unique_ptr<SliceAssigner> sliceAssigner,
-  std::shared_ptr<ValueState<K, W, RowVectorPtr>>& windowState,
-  std::shared_ptr<InternalTimerService<K, W>>& windowTimerService,
+  std::shared_ptr<ValueState<K, W, RowVectorPtr>> windowState,
+  std::shared_ptr<InternalTimerService<K, W>> windowTimerService,
   WindowBufferPtr& windowBuffer,
   const int32_t shiftTimeZone,
   const int64_t windowInterval,

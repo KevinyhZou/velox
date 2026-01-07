@@ -16,6 +16,7 @@
 #include "velox/vector/ComplexVector.h"
 #include "velox/vector/FlatVector.h"
 #include "velox/experimental/stateful/window/WindowProcessor.h"
+#include <experimental/stateful/InternalTimerService.h>
 #include "velox/experimental/stateful/window/SliceAssigner.h"
 #include "velox/experimental/stateful/window/WindowBuffer.h"
 #include "velox/experimental/stateful/window/TimeWindowUtil.h"
@@ -164,6 +165,10 @@ void SlicingWindowAggProcessor<K, W>::setWindowStartAndEnd(RowVectorPtr& data, W
   }
 }
 
+template<typename K, typename W>
+void SlicingWindowAggProcessor<K, W>::setWindowTimerService(std::shared_ptr<InternalTimerService<K, W>>& windowTimerService) {
+  windowTimerService_ = windowTimerService;
+}
 
 template<typename K, typename W>
 void SlicingWindowAggProcessor<K, W>::clearWindow(K key, int64_t timerTimestamp, W windowEnd) {
@@ -289,8 +294,8 @@ RowVectorPtr SliceSharedWindowAggProcessor<K, W>::merge(K key, W mergeResult, st
 template<typename K, typename W>
 std::shared_ptr<WindowProcessor<K, W>> buildWindowProgressor(
   std::unique_ptr<SliceAssigner> sliceAssigner,
-  std::shared_ptr<ValueState<K, W, RowVectorPtr>>& windowState,
-  std::shared_ptr<InternalTimerService<K, W>>& windowTimerService,
+  std::shared_ptr<ValueState<K, W, RowVectorPtr>> windowState,
+  std::shared_ptr<InternalTimerService<K, W>> windowTimerService,
   WindowBufferPtr& windowBuffer,
   const int32_t shiftTimeZone,
   const int64_t windowInterval,
@@ -311,8 +316,8 @@ std::shared_ptr<WindowProcessor<K, W>> buildWindowProgressor(
 
 template std::shared_ptr<WindowProcessor<uint32_t, int64_t>> buildWindowProgressor(
   std::unique_ptr<SliceAssigner> sliceAssigner,
-  std::shared_ptr<ValueState<uint32_t, int64_t, RowVectorPtr>>& windowState,
-  std::shared_ptr<InternalTimerService<uint32_t, int64_t>>& windowTimerService,
+  std::shared_ptr<ValueState<uint32_t, int64_t, RowVectorPtr>> windowState,
+  std::shared_ptr<InternalTimerService<uint32_t, int64_t>> windowTimerService,
   WindowBufferPtr& windowBuffer,
   const int32_t shiftTimeZone,
   const int64_t windowInterval,
