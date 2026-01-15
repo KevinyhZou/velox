@@ -27,18 +27,25 @@
 #include "rocksdb/slice.h"
 #include <cstdint>
 #include <memory>
+#include <sstream>
 #include <type_traits>
 #include <typeinfo>
 
 namespace facebook::velox::stateful {
 
-class TypeBaseSerializer {};
+class TypeBaseSerializer {
+public:
+    TypeBaseSerializer() {}
+    virtual ~TypeBaseSerializer() = default;
+};
 
 using TypeSerializerPtr = std::shared_ptr<TypeBaseSerializer>;
 
 template<typename D, typename B>
 class TypeSerializer : public TypeBaseSerializer {
 public:
+    TypeSerializer() : TypeBaseSerializer() {}
+    ~TypeSerializer() override = default;
     /// Serialize the given value to char array.
     virtual const B serialize(const D& data)  = 0;
 
@@ -47,9 +54,8 @@ public:
 
 protected:
     std::unique_ptr<ByteInputStream> toByteStream(const char* data, const size_t len) {
-        // ByteRange byteRange{reinterpret_cast<uint8_t*>(const_cast<char*>(data)),(int32_t)len,0};
-        // return std::make_unique<BufferInputStream>(std::vector<ByteRange>{{byteRange}});
-        return nullptr;
+        ByteRange byteRange{reinterpret_cast<uint8_t*>(const_cast<char*>(data)),(int32_t)len,0};
+        return std::make_unique<BufferInputStream>(std::vector<ByteRange>{{byteRange}});
     }
 
     const B convertToBytesOutput(const char* data, const size_t len) {
@@ -81,6 +87,8 @@ protected:
 template<typename D, typename B>
 class ValueSerializer : public TypeSerializer<D, B> {
 public:
+    ValueSerializer() : TypeSerializer<D, B>() {}
+
     const B serialize(const D& t) override {
         if constexpr (
             std::is_same_v<D, int8_t> || std::is_same_v<D, int16_t> ||
@@ -146,35 +154,35 @@ public:
     }
 
     const B serialize(const D& t) override {
-        // const size_t dataBytes = t->inMemoryBytes();
-        // char chs[dataBytes];
-        // auto byteStream = TypeSerializer<D, B>::toByteStream(chs, dataBytes);
-        // serde_->serializeSingleColumn(
-        //     t, 
-        //     &TypeSerializer<D, B>::getDefaultCompressionOptions(),
-        //     pool_,
-        //     nullptr); // byteStream.get());
-        // return TypeSerializer<D, B>::convertToBytesOutput(chs, dataBytes);
-        VELOX_FAIL("1111");
+        std::ostringstream output;
+        auto compressionOptions = TypeSerializer<D, B>::getDefaultCompressionOptions();
+        serde_->serializeSingleColumn(
+            t, 
+            &compressionOptions,
+            pool_,
+            &output);
+        std::string str = output.str();
+        return TypeSerializer<D, B>::convertToBytesOutput(str.data(), str.size());
     }
-    
+
     const D deserialize(const B& bytes) override { 
-        // const std::pair<const char*, const size_t> inputBytes = TypeSerializer<D, B>::convertToBytesInput(bytes);
-        // auto byteStream = TypeSerializer<D, B>::toByteStream(inputBytes.first, inputBytes.second);
-        // D result;
-        // serde_->deserializeSingleColumn(
-        //     nullptr,//byteStream.get(), 
-        //     pool_, 
-        //     dataType_, 
-        //     &result, 
-        //     &TypeSerializer<D, B>::getDefaultCompressionOptions());
-        // return result; 
-        VELOX_FAIL("2222");
+        const std::pair<const char*, const size_t> inputBytes = TypeSerializer<D, B>::convertToBytesInput(bytes);
+        auto compressionOptions = TypeSerializer<D, B>::getDefaultCompressionOptions();
+        auto byteStream = TypeSerializer<D, B>::toByteStream(inputBytes.first, inputBytes.second);
+        D result;
+        VectorPtr vec = std::dynamic_pointer_cast<BaseVector>(result);
+        serde_->deserializeSingleColumn(
+            byteStream.get(), 
+            pool_, 
+            dataType_, 
+            &vec,
+            &compressionOptions);
+        return result; 
     }
 
 private:
     const TypePtr dataType_;
-    const memory::MemoryPool* pool_;
+    memory::MemoryPool* pool_;
     const std::shared_ptr<serializer::presto::PrestoVectorSerde> serde_;
 
     void checkTypes() {

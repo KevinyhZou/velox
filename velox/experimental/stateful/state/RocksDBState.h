@@ -15,8 +15,7 @@
 */
 #pragma once
 
-#include <type/SimpleFunctionApi.h>
-#include <vector/ComplexVector.h>
+#include "velox/vector/ComplexVector.h"
 #include <exception>
 #include "velox/experimental/stateful/state/State.h"
 #include "velox/experimental/stateful/state/SerializedCompositeKeyBuilder.h"
@@ -92,9 +91,9 @@ public:
     V get(K key, N ns) {
         const rocksdb::Slice keyBytes = serializeCurrentKeyWithGroupAndNamespace(key, ns);
         try {
-            rocksdb::PinnableSlice* value;
+            rocksdb::PinnableSlice* value = nullptr;
             auto status = db_->Get(*readOptions_, columnFamily_, keyBytes, value);
-            if (!status.ok()) {
+            if (!status.ok() || !value) {
                 VELOX_FAIL("Failed to get value by key: {}, namespace:{}", key, ns);
             } else {
                 return valueSerializer_->deserialize(value->data());

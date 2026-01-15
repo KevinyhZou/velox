@@ -18,7 +18,6 @@
 #include <rocksdb/options.h>
 #include "velox/common/memory/MemoryPool.h"
 #include "velox/experimental/stateful/state/StateBackend.h"
-#include "velox/experimental/stateful/StatefulQueryConfig.h"
 #include "rocksdb/db.h"
 #include "rocksdb/options.h"
 

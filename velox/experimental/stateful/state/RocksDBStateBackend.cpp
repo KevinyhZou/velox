@@ -15,7 +15,7 @@
 */
 #include "velox/experimental/stateful/state/RocksDBStateBackend.h"
 #include "velox/experimental/stateful/state/StateBackend.h"
-// #include "velox/experimental/stateful/state/RocksDBKeyedStateBackend.h"
+#include "velox/experimental/stateful/state/RocksDBKeyedStateBackend.h"
 #include <folly/json/dynamic.h>
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
@@ -30,19 +30,17 @@ std::string RocksDBStateBackend::getName() const {
 std::shared_ptr<KeyedStateBackend> RocksDBStateBackend::createKeyedStateBackend(KeyedStateBackendParameters parameters) {
     RocksDBKeyedStateBackendParameters* rocksdbStateParams = static_cast<RocksDBKeyedStateBackendParameters*>(&parameters);
     VELOX_CHECK(rocksdbStateParams != nullptr, "The provided parameters is not for rocksdb state backend.");
-    // return std::make_shared<RocksDBKeyedStateBackend>(
-    //     rocksdbStateParams->getDB(),
-    //     rocksdbStateParams->getReadOptions(),
-    //     rocksdbStateParams->getWriteOptions(),
-    //     rocksdbStateParams->getStates(),
-    //     rocksdbStateParams->getColumnFamilies(),
-    //     rocksdbStateParams->getStateOperators()
-    //     // rocksdbStateParams->getStateKeys(),
-    //     // rocksdbStateParams->getStateNamespaces(),
-    //     // rocksdbStateParams->getStateValues(),
-    //     // pool_
-    //     );
-    return nullptr;
+    return std::make_shared<RocksDBKeyedStateBackend>(
+        rocksdbStateParams->getDB(),
+        rocksdbStateParams->getReadOptions(),
+        rocksdbStateParams->getWriteOptions(),
+        rocksdbStateParams->getStates(),
+        rocksdbStateParams->getColumnFamilies(),
+        rocksdbStateParams->getStateOperators(),
+        rocksdbStateParams->getStateKeys(),
+        rocksdbStateParams->getStateNamespaces(),
+        rocksdbStateParams->getStateValues(),
+        pool_);
 }
 
 folly::dynamic RocksDBStateBackend::serialize() const {

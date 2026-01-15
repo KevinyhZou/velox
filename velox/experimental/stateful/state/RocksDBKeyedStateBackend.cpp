@@ -19,8 +19,6 @@
 #include "velox/experimental/stateful/state/State.h"
 #include "velox/experimental/stateful/state/RocksDBState.h"
 #include "velox/experimental/stateful/TypeSerializer.h"
-#include "rocksdb/db.h"
-#include "rocksdb/slice.h"
 #include <memory>
 
 namespace facebook::velox::stateful {
@@ -31,19 +29,18 @@ RocksDBKeyedStateBackend::RocksDBKeyedStateBackend(
     const rocksdb::WriteOptions* writeOptions,
     const std::list<std::string>& states,
     const std::unordered_map<std::string, rocksdb::ColumnFamilyHandle*>& stateColumnFamilies,
-    const std::unordered_map<std::string, std::string>& stateOperators
-    // const std::unordered_map<std::string, TypePtr>& stateKeys,
-    // const std::unordered_map<std::string, TypePtr>& stateNamespaces,
-    /// const std::unordered_map<std::string, TypePtr>& stateValues,
-    // memory::MemoryPool* pool
-    ) 
-    : KeyedStateBackend(), db_(db),
+    const std::unordered_map<std::string, std::string>& stateOperators,
+    const std::unordered_map<std::string, TypePtr>& stateKeys,
+    const std::unordered_map<std::string, TypePtr>& stateNamespaces,
+    const std::unordered_map<std::string, TypePtr>& stateValues,
+    memory::MemoryPool* pool ) 
+    : KeyedStateBackend(pool), db_(db),
     readOptions_(readOptions),
     writeOptions_(writeOptions),
     states_(states),
-    // stateKeys_(stateKeys),
-    // stateNamespaces_(stateNamespaces),
-    // stateValues_(stateValues),
+    stateKeys_(stateKeys),
+    stateNamespaces_(stateNamespaces),
+    stateValues_(stateValues),
     stateOperators_(stateOperators),
     stateColumnFamilies_(stateColumnFamilies) {}
 
@@ -52,19 +49,19 @@ void RocksDBKeyedStateBackend::checkValidState(const std::string& stateName) {
     if (stateIt == states_.end()) {
         VELOX_FAIL("The rocksdb state {} is not registered", stateName);
     }
-    auto stateCFIt = std::find(stateColumnFamilies_.begin(), stateColumnFamilies_.end(), stateName);
+    auto stateCFIt = stateColumnFamilies_.find(stateName);
     if (stateCFIt == stateColumnFamilies_.end()) {
         VELOX_FAIL("No column family related to rocksdb state {}", stateName);
     }
-    auto stateKeyIt = std::find(stateKeys_.begin(), stateKeys_.end(), stateName);
+    auto stateKeyIt = stateKeys_.find(stateName);
     if (stateKeyIt == stateKeys_.end()) {
         VELOX_FAIL("No state key related to rocksdb state {}", stateName);
     }
-    auto stateNamespaceIt = std::find(stateNamespaces_.begin(), stateNamespaces_.end(), stateName);
+    auto stateNamespaceIt = stateNamespaces_.find(stateName);
     if (stateNamespaceIt == stateNamespaces_.end()) {
         VELOX_FAIL("No state namespace related to rocksdb state {}", stateName);
     }
-    auto stateValueIt = std::find(stateValues_.begin(), stateValues_.end(), stateName);
+    auto stateValueIt = stateValues_.find(stateName);
     if (stateValueIt == stateValues_.end()) {
         VELOX_FAIL("No state value related to rocksdb state {}", stateName);
     }

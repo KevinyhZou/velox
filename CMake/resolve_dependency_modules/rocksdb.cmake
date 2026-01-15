@@ -11,11 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+include_guard(GLOBAL)
 
-velox_add_library(
-  velox_stateful_state
-  OBJECT
-  HeapKeyedStateBackend.cpp
-  HashMapStateBackend.cpp
-  RocksDBKeyedStateBackend.cpp
-  RocksDBStateBackend.cpp)
+set(VELOX_ROCKSDB_VERSION FRocksDB-6.20.3)
+# release artifacts are tough (except the auto generated ones)
+set(VELOX_ROCKSDB_BUILD_SHA256_CHECKSUM 00ec077666ef76859d68cdff04a8cd40cad5afcb9ec1d100016358d7140a578d)
+set(VELOX_ROCKSDB_SOURCE_URL "https://github.com/ververica/frocksdb/archive/refs/heads/FRocksDB-6.20.3.zip")
+
+velox_resolve_dependency_url(ROCKSDB)
+
+message(STATUS "Building ROCKSDB from source")
+FetchContent_Declare(
+  rocksdb
+  URL ${VELOX_ROCKSDB_SOURCE_URL}
+  URL_HASH ${VELOX_ROCKSDB_BUILD_SHA256_CHECKSUM})
+
+FetchContent_MakeAvailable(rocksdb)

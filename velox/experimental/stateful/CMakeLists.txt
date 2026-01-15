@@ -35,7 +35,8 @@ velox_add_library(
   LocalWindowAggregator.cpp
   WindowAggregator.cpp
   GroupWindowAggregator.cpp
-  WatermarkAssigner.cpp)
+  WatermarkAssigner.cpp
+  TypeSerializer.cpp)
 
 velox_link_libraries(
   velox_stateful_exec

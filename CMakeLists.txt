@@ -541,6 +541,9 @@ velox_resolve_dependency(simdjson 3.9.3)
 velox_set_source(folly)
 velox_resolve_dependency(folly)
 
+velox_set_source(rocksdb)
+velox_resolve_dependency(rocksdb)
+
 if(${VELOX_ENABLE_KAFKA_CONNECTOR})
   velox_set_source(CppKafka)
   velox_resolve_dependency(CppKafka)
