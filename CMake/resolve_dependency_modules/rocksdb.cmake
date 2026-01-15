@@ -17,6 +17,7 @@ set(VELOX_ROCKSDB_VERSION FRocksDB-6.20.3)
 # release artifacts are tough (except the auto generated ones)
 set(VELOX_ROCKSDB_BUILD_SHA256_CHECKSUM 00ec077666ef76859d68cdff04a8cd40cad5afcb9ec1d100016358d7140a578d)
 set(VELOX_ROCKSDB_SOURCE_URL "https://github.com/ververica/frocksdb/archive/refs/heads/FRocksDB-6.20.3.zip")
+set(ROCKSDB_BUILD_SHARED ON)
 
 velox_resolve_dependency_url(ROCKSDB)
 
