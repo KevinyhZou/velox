@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #include "velox/experimental/stateful/StatefulOperator.h"
+#include "velox/experimental/stateful/state/StateBackend.h"
 #include "velox/experimental/stateful/StatefulTask.h"
 #include "velox/experimental/stateful/StreamElement.h"
 
@@ -102,14 +103,13 @@ void StatefulOperator::processWatermark(long timestamp, int index) {
 
 void StatefulOperator::initializeState(StateBackend* stateBackend) {
   if (!stateHandler_) {
-    KeyedStateBackendParameters parameters(
+    if (!keyedStateBackendParameters_) {
+      keyedStateBackendParameters_ = std::make_shared<KeyedStateBackendParameters>(StateBackendType::HEAP, 
         op()->operatorCtx()->driverCtx()->task->taskId(), op()->operatorId());
+    }
     stateHandler_ = std::make_shared<StreamOperatorStateHandler>(
         op()->operatorId(),
-        stateBackend->createKeyedStateBackend(
-            KeyedStateBackendParameters(
-                op()->operatorCtx()->driverCtx()->task->taskId(),
-                op()->operatorId())));
+        stateBackend->createKeyedStateBackend(*keyedStateBackendParameters_));
   }
   auto snapshotable = dynamic_cast<Snapshotable*>(op().get());
   if (snapshotable) {

@@ -15,7 +15,9 @@
  */
 #pragma once
 
+#include <folly/json/dynamic.h>
 #include "velox/common/serialization/Serializable.h"
+#include "velox/common/serialization/DeserializationRegistry.h"
 #include "velox/experimental/stateful/state/KeyedStateBackend.h"
 
 namespace facebook::velox::stateful {
@@ -31,22 +33,52 @@ class StateBackend : public ISerializable {
       KeyedStateBackendParameters parameters) = 0;
 };
 
-class KeyedStateBackendParameters {
- public:
-  KeyedStateBackendParameters(const std::string& jobId, int operatorId)
-      : jobId_(jobId), operatorId_(operatorId) {}
+enum class StateBackendType {
+  HEAP,
+  ROCKSDB
+};
 
-  std::string getJobId() {
+class KeyedStateBackendParameters : public ISerializable {
+ public:
+  KeyedStateBackendParameters(const StateBackendType backendType, const std::string& jobId, int32_t operatorId)
+      : backendType_(backendType), jobId_(jobId), operatorId_(operatorId) {}
+
+  std::string getJobId() const {
     return jobId_;
   }
 
-  int getOperatorIdentifier() {
+  int32_t getOperatorIdentifier() const {
     return operatorId_;
   }
 
+  StateBackendType getBackendType() const {
+    return backendType_;
+  }
+
+  folly::dynamic serialize() const override {
+    folly::dynamic obj;
+    obj["jobId"] = jobId_;
+    obj["operatorId"] = operatorId_;
+    obj["backendType"] = static_cast<int32_t>(backendType_);
+    return obj;
+  }
+
+  static std::shared_ptr<const KeyedStateBackendParameters> create(const folly::dynamic& obj, void* context) {
+    const std::string jobId = obj["jobId"].asString();
+    const std::int32_t operatorId = obj["operatorId"].asInt();
+    const StateBackendType backendType = static_cast<StateBackendType>(obj["backendType"].asInt());
+    return std::make_shared<const KeyedStateBackendParameters>(backendType, jobId, operatorId);
+  }
+
+  static void registerSerDe() {
+    auto& registry = DeserializationWithContextRegistryForSharedPtr();
+    registry.Register("KeyedStateBackendParameters", create);
+  }
+
  private:
+  const StateBackendType backendType_;
   const std::string jobId_;
-  int operatorId_;
+  int32_t operatorId_;
 };
 
 } // namespace facebook::velox::stateful

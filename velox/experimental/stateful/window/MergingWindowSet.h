@@ -18,8 +18,8 @@
 #include "velox/experimental/stateful/window/GroupWindowAssigner.h"
 #include "velox/experimental/stateful/window/WindowProcessFunction.h"
 #include "velox/experimental/stateful/window/Window.h"
+#include "velox/experimental/stateful/state/State.h"
 #include <folly/container/EvictingCacheMap.h>
-#include <map>
 #include <set>
 
 namespace facebook::velox::stateful {

@@ -16,6 +16,7 @@
 #pragma once
 
 #include "velox/exec/Operator.h"
+#include "velox/experimental/stateful/state/State.h"
 #include "velox/experimental/stateful/state/StateDescriptor.h"
 #include "velox/experimental/stateful/window/GroupWindowAssigner.h"
 #include "velox/experimental/stateful/window/GroupWindowAggsHandler.h"

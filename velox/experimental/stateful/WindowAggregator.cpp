@@ -19,6 +19,8 @@
 #include "velox/type/Type.h"
 #include "velox/vector/ComplexVector.h"
 #include "velox/experimental/stateful/WindowAggregator.h"
+#include <experimental/stateful/StatefulOperator.h>
+#include <experimental/stateful/state/StateBackend.h>
 #include "velox/experimental/stateful/TimerHeapInternalTimer.h"
 #include "velox/experimental/stateful/window/TimeWindowUtil.h"
 
@@ -34,8 +36,9 @@ WindowAggregator::WindowAggregator(
     const bool useDayLightSaving,
     const bool isEventTime,
     const int windowStartIndex,
-    const int windowEndIndex)
-    : StatefulOperator(std::move(globalAggregator), std::move(targets)), Triggerable<uint32_t, long>(),
+    const int windowEndIndex,
+    const std::shared_ptr<const KeyedStateBackendParameters>& backendParameters)
+    : StatefulOperator(std::move(globalAggregator), std::move(targets), backendParameters), Triggerable<uint32_t, long>(),
       localAggregator_(std::move(localAggregator)),
       keySelector_(std::move(keySelector)),
       sliceAssigner_(std::move(sliceAssigner)),

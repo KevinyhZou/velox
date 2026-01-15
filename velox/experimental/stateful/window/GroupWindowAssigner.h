@@ -15,7 +15,6 @@
  */
 #pragma once
 
-#include "velox/experimental/stateful/state/State.h"
 #include "velox/experimental/stateful/window/Window.h"
 #include "velox/vector/ComplexVector.h"
 
@@ -47,7 +46,7 @@ class SessionWindowAssigner : public MergingWindowAssigner {
   std::vector<TimeWindow> assignWindows(RowVectorPtr element, int64_t timestamp) override;
 
   void mergeWindows(
-      TimeWindow newWindow, std::set<TimeWindow>& sortedWindows, MergeResultCollector& callback);
+      TimeWindow newWindow, std::set<TimeWindow>& sortedWindows, MergeResultCollector& callback) override;
 
   bool isEventTime() override {
     return isEventTime_;

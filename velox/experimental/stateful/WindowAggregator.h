@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <experimental/stateful/state/StateBackend.h>
 #include <memory>
 #include <mutex>
 #include "velox/exec/Driver.h"
@@ -43,7 +44,8 @@ class WindowAggregator : public StatefulOperator, public Triggerable<uint32_t, l
     const bool useDayLightSaving,
     const bool isEventTime,
     const int windowStartIndex,
-    const int windowEndIndex);
+    const int windowEndIndex,
+    const std::shared_ptr<const KeyedStateBackendParameters>& backendParameters);
 
   void initialize() override;
 

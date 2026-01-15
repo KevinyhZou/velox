@@ -30,6 +30,8 @@ namespace facebook::velox::stateful {
 // This class is relevent to flink org.apache.flink.runtime.state.KeyedStateBackend.
 class KeyedStateBackend : public Snapshotable, public CheckpointListener {
  public:
+  KeyedStateBackend(memory::MemoryPool* pool = nullptr) : pool_(pool) {}
+
   virtual std::shared_ptr<MapState<uint32_t, int, RowVectorPtr, int>>
       getOrCreateMapState(StateDescriptor& stateDescriptor) = 0;
 
@@ -63,9 +65,11 @@ class KeyedStateBackend : public Snapshotable, public CheckpointListener {
     return keyContext_->getCurrentKey();
   }
 
+protected:
+  memory::MemoryPool* pool_;
+
 private:
     std::shared_ptr<InternalKeyContext<uint32_t>> keyContext_;
-    velox::memory::MemoryPool* memoryPool;
 };
 
 using KeyedStateBackendPtr = std::shared_ptr<KeyedStateBackend>;

@@ -15,9 +15,12 @@
  */
 #include "velox/experimental/stateful/StatefulPlanner.h"
 #include "velox/experimental/stateful/StatefulTask.h"
+#include "velox/experimental/stateful/StatefulQueryConfig.h"
+#include "velox/core/QueryConfig.h"
 #include "velox/exec/OperatorUtils.h"
 #include "velox/exec/OperatorStats.h"
 #include "velox/experimental/stateful/state/HashMapStateBackend.h"
+#include "velox/experimental/stateful/state/RocksDBStateBackend.h"
 
 namespace facebook::velox::stateful {
 
@@ -62,7 +65,13 @@ void StatefulTask::init() {
 }
 
 void StatefulTask::initStateBackend() {
-  statebackend_ = std::make_unique<HashMapStateBackend>();
+  const core::QueryConfig& config = queryCtx()->queryConfig();
+  const StatefulQueryConfig* queryConfig = static_cast<const StatefulQueryConfig*>(&config);
+  if (queryConfig != nullptr && queryConfig->stateBackendType() == StateBackendType::ROCKSDB) {
+    statebackend_ = std::make_unique<RocksDBStateBackend>(pool());
+  } else {
+    statebackend_ = std::make_unique<HashMapStateBackend>();
+  }
 }
 
 void StatefulTask::initOperators() {

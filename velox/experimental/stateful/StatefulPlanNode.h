@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include "velox/experimental/stateful/state/StateBackend.h"
 #include "velox/core/PlanNode.h"
 
 namespace facebook::velox::stateful {
@@ -336,7 +337,8 @@ class StreamWindowAggregationNode : public core::PlanNode {
       bool isEventTime,
       int rowtimeIndex,
       int windowStartIndex,
-      int windowEndIndex) :
+      int windowEndIndex,
+      const std::shared_ptr<const KeyedStateBackendParameters>& keyedBackendParameters) :
         PlanNode(id),
         aggregation_(std::move(aggregationNode)),
         localAgg_(std::move(localAgg)),
@@ -353,7 +355,8 @@ class StreamWindowAggregationNode : public core::PlanNode {
         isEventTime_(isEventTime),
         rowtimeIndex_(rowtimeIndex),
         windowStartIndex_(windowStartIndex),
-        windowEndIndex_(windowEndIndex) {}
+        windowEndIndex_(windowEndIndex),
+        keyedBackendParameters_(keyedBackendParameters) {}
 
   const RowTypePtr& outputType() const override {
     return outputType_;
@@ -419,6 +422,10 @@ class StreamWindowAggregationNode : public core::PlanNode {
     return windowEndIndex_;
   }
 
+  const std::shared_ptr<const KeyedStateBackendParameters> keyedBackendParameters() const {
+    return keyedBackendParameters_;
+  }
+
   const std::vector<core::PlanNodePtr>& sources() const override;
 
   std::string_view name() const override {
@@ -448,6 +455,7 @@ class StreamWindowAggregationNode : public core::PlanNode {
   int rowtimeIndex_;
   int windowStartIndex_;
   int windowEndIndex_;
+  const std::shared_ptr<const KeyedStateBackendParameters> keyedBackendParameters_;
 };
 
 class GroupWindowAggsHandlerNode : public core::PlanNode {

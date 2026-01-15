@@ -16,6 +16,7 @@
 #pragma once
 
 #include "velox/experimental/stateful/TypeSerializer.h"
+#include "rocksdb/slice.h"
 #include <cstdint>
 
 namespace facebook::velox::stateful {
@@ -24,7 +25,7 @@ template<typename K>
 class SerializedCompositeKeyBuilder {
 public:
     SerializedCompositeKeyBuilder(
-        const std::shared_ptr<TypeSerializer<K>> keySerializer,
+        const std::shared_ptr<TypeSerializer<K, rocksdb::Slice>> keySerializer,
         int32_t keyGroupPrefixBytes,
         int32_t initialSize) {
 
@@ -34,12 +35,12 @@ public:
     }
 
     template<typename N>
-    void setNamespace(N ns, const std::shared_ptr<TypeSerializer<N>> namespaceSerializer) {
+    void setNamespace(N ns, const std::shared_ptr<TypeSerializer<N, rocksdb::Slice>> namespaceSerializer) {
 
     }
 
     template<typename N>
-    const char* buildCompositeKeyNamespace(N ns, const std::shared_ptr<TypeSerializer<N>> namespaceSerializer) {
+    const rocksdb::Slice buildCompositeKeyNamespace(N ns, const std::shared_ptr<TypeSerializer<N, rocksdb::Slice>> namespaceSerializer) {
         return nullptr;
     }
 };

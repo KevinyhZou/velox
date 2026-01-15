@@ -191,7 +191,8 @@ StatefulOperatorPtr StatefulPlanner::nodeToStatefulOperator(
           windowAggNode->useDayLightSaving(),
           windowAggNode->isEventTime(),
           windowAggNode->windowStartIndex(),
-          windowAggNode->windowEndIndex());
+          windowAggNode->windowEndIndex(),
+          windowAggNode->keyedBackendParameters());
     }
   } else if (
       auto windowAggNode =

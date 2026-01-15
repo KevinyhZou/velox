@@ -49,7 +49,11 @@ class ListState : public State {
  public:
   virtual std::list<S>& get(K key, N ns) = 0;
 
+  // virtual ArrayVectorPtr& vectorGet(K key, N ns) = 0;
+
   virtual void add(K key, N ns, S value) = 0;
+
+  // virtual void vectorAdd(K key, N ns, const ArrayVectorPtr& vec) = 0;
 
   virtual void remove(K key, N ns) = 0;
 //  virtual void addAll(std::list<T>& values) = 0;

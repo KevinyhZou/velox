@@ -22,10 +22,15 @@ namespace facebook::velox::stateful {
 // This class is relevant to flink org.apache.flink.api.common.StateDescriptor.
 class StateDescriptor {
  public:
-  StateDescriptor(const std::string& name) : name_(name) {}
+  StateDescriptor(const std::string& name, const std::string& operatorId = "") 
+  : name_(name), operatorId_(operatorId) {}
 
   const std::string name() const {
     return name_;
+  }
+
+  const std::string operatorId() const {
+    return operatorId_;
   }
 
   int keyGroupNumber() const {
@@ -36,6 +41,7 @@ class StateDescriptor {
 
  private:
   const std::string name_;
+  const std::string operatorId_;
   int keyGroupNumber_ = 1024;
 };
 

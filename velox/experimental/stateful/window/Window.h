@@ -54,6 +54,8 @@ class TimeWindow : public Window {
 
   TimeWindow(int64_t start, int64_t end)
       : start_(start), end_(end) {}
+      
+  virtual ~TimeWindow() = default;
 
   int64_t maxTimestamp() override {
     return end_ - 1;
