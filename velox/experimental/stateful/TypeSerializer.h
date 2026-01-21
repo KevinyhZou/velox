@@ -15,11 +15,9 @@
 */
 #pragma once
 
-#include "velox/common/compression/Compression.h"
 #include "velox/common/memory/MemoryPool.h"
 #include "velox/type/Type.h"
 #include "velox/vector/ComplexVector.h"
-#include "velox/vector/VectorStream.h"
 #include "velox/type/Timestamp.h"
 #include "velox/type/StringView.h"
 #include "velox/type/HugeInt.h"
@@ -30,6 +28,7 @@
 #include <sstream>
 #include <type_traits>
 #include <typeinfo>
+#include <vector>
 
 namespace facebook::velox::stateful {
 
@@ -41,50 +40,30 @@ public:
 
 using TypeSerializerPtr = std::shared_ptr<TypeBaseSerializer>;
 
-template<typename D, typename B>
+template<typename D>
 class TypeSerializer : public TypeBaseSerializer {
 public:
     TypeSerializer() : TypeBaseSerializer() {}
     ~TypeSerializer() override = default;
     /// Serialize the given value to char array.
-    virtual const B serialize(const D& data)  = 0;
+    virtual const std::string serialize(const D& data)  = 0;
 
     /// Deserialize the give char array to value.
-    virtual const D deserialize(const B& bytes) = 0;
+    virtual const D deserialize(const std::string& str) = 0;
 
 protected:
     std::unique_ptr<ByteInputStream> toByteStream(const char* data, const size_t len) {
         ByteRange byteRange{reinterpret_cast<uint8_t*>(const_cast<char*>(data)),(int32_t)len,0};
         return std::make_unique<BufferInputStream>(std::vector<ByteRange>{{byteRange}});
     }
-
-    const B convertToBytesOutput(const char* data, const size_t len) {
-        if constexpr (std::is_same_v<B, rocksdb::Slice>) {
-            return rocksdb::Slice(data, len);
-        } else if constexpr (std::is_same_v<B, facebook::velox::StringView>) {
-            return facebook::velox::StringView(data, len);
-        } else {
-            VELOX_FAIL("Not support output type: {} for type serializer", typeid(B).name());
-        }
-    }
-
-    const std::pair<const char*, const size_t> convertToBytesInput(const B bytes) {
-        if constexpr (std::is_same_v<B, rocksdb::Slice>) {
-            return std::pair<const char*, const size_t>(bytes.data(), bytes.size());
-        } else if constexpr (std::is_same_v<B, facebook::velox::StringView>) {
-            return std::pair<const char*, const size_t>(bytes.data(), bytes.size());
-        } else {
-            VELOX_FAIL("Not support output type: {} for type serializer", typeid(B).name());
-        }
-    }
 };
 
-template<typename D, typename B>
-class ValueSerializer : public TypeSerializer<D, B> {
+template<typename D>
+class ValueSerializer : public TypeSerializer<D> {
 public:
-    ValueSerializer() : TypeSerializer<D, B>() {}
+    ValueSerializer() : TypeSerializer<D>() {}
 
-    const B serialize(const D& t) override {
+    const std::string serialize(const D& t) override {
         if constexpr (
             std::is_same_v<D, int8_t> || std::is_same_v<D, int16_t> ||
             std::is_same_v<D, int32_t> || std::is_same_v<D, int64_t> ||
@@ -92,28 +71,27 @@ public:
             std::is_same_v<D, uint16_t> || std::is_same_v<D, uint32_t> ||
             std::is_same_v<D, uint64_t> || std::is_same_v<D, uint128_t> ||
             std::is_same_v<D, float> || std::is_same_v<D, double>) {
-            char chs[sizeof(D)];
-            std::memcpy(chs, &t, sizeof(D));
-            return TypeSerializer<D, B>::convertToBytesOutput(chs, sizeof(D));
+            std::vector<char> buffer(sizeof(D));
+            std::memcpy(buffer.data(), &t, sizeof(D));
+            return std::string(buffer.data(), buffer.size());
         } else if constexpr (std::is_same_v<D, bool>) {
             uint8_t byteValue = t ? 1 : 0;
-            char chs[sizeof(uint8_t)];
-            std::memcpy(chs, &byteValue, sizeof(uint8_t));
-            return TypeSerializer<D, B>::convertToBytesOutput(chs, sizeof(uint8_t));
+            std::vector<char> buffer(sizeof(uint8_t));
+            std::memcpy(buffer.data(), &byteValue, sizeof(uint8_t));
+            return std::string(buffer.data(), buffer.size());
         } else if constexpr (std::is_same_v<D, StringView>) {
-            return TypeSerializer<D, B>::convertToBytesOutput(t.data(), t.size());
+            return std::string(t.data(), t.size());
         } else if constexpr (std::is_same_v<D, Timestamp>) {
             int64_t mills = t.toMillis();
-            char chs[sizeof(int64_t)];
-            std::memcpy(chs, &t, sizeof(int64_t));
-            return TypeSerializer<D, B>::convertToBytesOutput(chs, sizeof(int64_t));
+            std::vector<char> buffer(sizeof(int64_t));
+            std::memcpy(buffer.data(), &mills, sizeof(int64_t));
+            return std::string(buffer.data(), buffer.size());
         } else {
             VELOX_FAIL("Type {} is not supported", typeid(D).name());
         }
     }
 
-    const D deserialize(const B& bytes) override {
-        std::pair<const char*, const size_t> inputBytes = TypeSerializer<D, B>::convertToBytesInput(bytes);
+    const D deserialize(const std::string& str) override {
         if constexpr (
             std::is_same_v<D, int8_t> || std::is_same_v<D, int16_t> ||
             std::is_same_v<D, int32_t> || std::is_same_v<D, int64_t> ||
@@ -122,17 +100,17 @@ public:
             std::is_same_v<D, uint64_t> || std::is_same_v<D, uint128_t> ||
             std::is_same_v<D, float> || std::is_same_v<D, double>) {
             D t;
-            std::memcpy(&t, inputBytes.first, inputBytes.second);
+            std::memcpy(&t, str.data(), str.size());
             return t;
         } else if constexpr (std::is_same_v<D, bool>) {
             uint8_t byteValue;
-            std::memcpy(&byteValue, inputBytes.first, inputBytes.second);
+            std::memcpy(&byteValue, str.data(), str.size());
             return byteValue > 0 ? true : false;
         } else if constexpr (std::is_same_v<D, StringView>) {
-            return StringView(inputBytes.first, inputBytes.second);
+            return StringView(str.data(), str.size());
         } else if constexpr (std::is_same_v<D, Timestamp>) {
             int64_t mills;
-            std::memcpy(&mills, inputBytes.first, inputBytes.second);
+            std::memcpy(&mills, str.data(), str.size());
             return Timestamp::fromMillis(mills);
         } else {
             VELOX_FAIL("Type {} is not supported", typeid(D).name());
@@ -140,28 +118,26 @@ public:
     }
 };
 
-template<typename D, typename B>
-class ComplexVectorSerializer : public TypeSerializer<D, B>{
+template<typename D>
+class ComplexVectorSerializer : public TypeSerializer<D>{
 public:
     ComplexVectorSerializer(const TypePtr& dataType, memory::MemoryPool* pool) 
     : dataType_(dataType), pool_(pool), serde_(std::make_shared<serializer::presto::PrestoVectorSerde>()) {
         checkTypes();
     }
 
-    const B serialize(const D& t) override {
+    const std::string serialize(const D& t) override {
         std::ostringstream output;
         serde_->serializeSingleColumn(
             t, 
             nullptr,
             pool_,
             &output);
-        std::string str = output.str();
-        return TypeSerializer<D, B>::convertToBytesOutput(str.data(), str.size());
+        return output.str();
     }
 
-    const D deserialize(const B& bytes) override { 
-        const std::pair<const char*, const size_t> inputBytes = TypeSerializer<D, B>::convertToBytesInput(bytes);
-        auto byteStream = TypeSerializer<D, B>::toByteStream(inputBytes.first, inputBytes.second);
+    const D deserialize(const std::string& str) override {
+        auto byteStream = TypeSerializer<D>::toByteStream(str.data(), str.size());
         D result;
         VectorPtr vec = std::dynamic_pointer_cast<BaseVector>(result);
         serde_->deserializeSingleColumn(
@@ -184,70 +160,65 @@ private:
             && !std::is_same_v<D, MapVectorPtr>) {
             VELOX_FAIL("Vector type not valid, this complex vector seralizer can only suupport rowvector/arrayvector/mapvector.");
         }
-        if (!std::is_same_v<B, rocksdb::Slice>
-            && !std::is_same_v<B, StringView>) {
-            VELOX_FAIL("Output Bytes type not valid, thie complex vector serializer can not support rocksdb::slice/stringview.");
-        }
     }
 };
 
-template<typename B>
-TypeSerializerPtr createSerializer(const TypePtr& type, const bool isUnsigned = false, memory::MemoryPool* pool = nullptr) {
+inline TypeSerializerPtr createSerializer(const TypePtr& type, const bool isUnsigned = false, memory::MemoryPool* pool = nullptr) {
     const TypeKind kind = type->kind();
     if(kind == TypeKind::INTEGER) {
         if (isUnsigned) {
-            return std::make_shared<ValueSerializer<uint32_t, B>>();
+            return std::make_shared<ValueSerializer<uint32_t>>();
         } else {
-            return std::make_shared<ValueSerializer<int32_t, B>>();
+            return std::make_shared<ValueSerializer<int32_t>>();
         }
     } else if (kind == TypeKind::BIGINT) {
         if (isUnsigned) {
-            return std::make_shared<ValueSerializer<uint64_t, B>>();
+            return std::make_shared<ValueSerializer<uint64_t>>();
         } else {
-            return std::make_shared<ValueSerializer<int64_t, B>>();
+            return std::make_shared<ValueSerializer<int64_t>>();
         }
     } else if (kind == TypeKind::HUGEINT) {
         if (isUnsigned) {
-            return std::make_shared<ValueSerializer<uint128_t, B>>();
+            return std::make_shared<ValueSerializer<uint128_t>>();
         } else {
-            return std::make_shared<ValueSerializer<int128_t, B>>();
+            return std::make_shared<ValueSerializer<int128_t>>();
         }
     } else if (kind == TypeKind::SMALLINT) {
         if (isUnsigned) {
-            return std::make_shared<ValueSerializer<uint16_t, B>>();
+            return std::make_shared<ValueSerializer<uint16_t>>();
         } else {
-            return std::make_shared<ValueSerializer<int16_t, B>>();
+            return std::make_shared<ValueSerializer<int16_t>>();
         }
     } else if (kind == TypeKind::TINYINT) {
         if (isUnsigned) {
-            return std::make_shared<ValueSerializer<uint8_t, B>>();
+            return std::make_shared<ValueSerializer<uint8_t>>();
         } else {
-            return std::make_shared<ValueSerializer<int8_t, B>>();
+            return std::make_shared<ValueSerializer<int8_t>>();
         }
     } else if (kind == TypeKind::REAL) {
         using T5 = TypeTraits<TypeKind::REAL>::NativeType;
-        return std::make_shared<ValueSerializer<T5, B>>();
+        return std::make_shared<ValueSerializer<T5>>();
     } else if (kind == TypeKind::DOUBLE) {
         using T6 = TypeTraits<TypeKind::DOUBLE>::NativeType;
-        return std::make_shared<ValueSerializer<T6, B>>();
+        return std::make_shared<ValueSerializer<T6>>();
     } else if (kind == TypeKind::BOOLEAN) {
         using T7 = TypeTraits<TypeKind::BOOLEAN>::NativeType;
-        return std::make_shared<ValueSerializer<T7, B>>();
+        return std::make_shared<ValueSerializer<T7>>();
     } else if (kind == TypeKind::VARCHAR) {
         using T8 = TypeTraits<TypeKind::VARCHAR>::NativeType;
-        return std::make_shared<ValueSerializer<T8, B>>();
+        return std::make_shared<ValueSerializer<T8>>();
     } else if (kind == TypeKind::TIMESTAMP) {
         using T9 = TypeTraits<TypeKind::TIMESTAMP>::NativeType;
-        return std::make_shared<ValueSerializer<T9, B>>();
+        return std::make_shared<ValueSerializer<T9>>();
     } else if (kind == TypeKind::ROW) {
         const std::shared_ptr<const RowType> rowType = std::dynamic_pointer_cast<const RowType>(type);
-        return std::make_shared<ComplexVectorSerializer<RowVectorPtr, B>>(rowType, pool);
+        return std::make_shared<ComplexVectorSerializer<RowVectorPtr>>(rowType, pool);
     } else if (kind == TypeKind::ARRAY) {
         const std::shared_ptr<const ArrayType> arrayType = std::dynamic_pointer_cast<const ArrayType>(type);
-        return std::make_shared<ComplexVectorSerializer<ArrayVectorPtr, B>>(arrayType, pool);
+        return std::make_shared<ComplexVectorSerializer<ArrayVectorPtr>>(arrayType, pool);
     } else if (kind == TypeKind::MAP) {
         const std::shared_ptr<const MapType> mapType = std::dynamic_pointer_cast<const MapType>(type);
-        return std::make_shared<ComplexVectorSerializer<MapVectorPtr, B>>(mapType, pool);
+        return std::make_shared<ComplexVectorSerializer<MapVectorPtr>>(mapType, pool);
     } else {
         VELOX_FAIL("Type {} not supported", type->name());
     }

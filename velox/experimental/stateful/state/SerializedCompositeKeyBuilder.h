@@ -15,9 +15,7 @@
 */
 #pragma once
 
-#include <sys/socket.h>
 #include "velox/experimental/stateful/TypeSerializer.h"
-#include "rocksdb/slice.h"
 #include <cstdint>
 #include <memory>
 
@@ -27,8 +25,8 @@ template<typename K, typename N>
 class SerializedCompositeKeyBuilder {
 public:
     SerializedCompositeKeyBuilder(
-        const std::shared_ptr<TypeSerializer<K, rocksdb::Slice>> keySerializer,
-        const std::shared_ptr<TypeSerializer<N, rocksdb::Slice>> namespaceSerializer,
+        const std::shared_ptr<TypeSerializer<K>> keySerializer,
+        const std::shared_ptr<TypeSerializer<N>> namespaceSerializer,
         int32_t keyGroupPrefixBytes,
         int32_t initialSize) :
         keySerializer_(keySerializer),
@@ -37,8 +35,8 @@ public:
         initialSize_(initialSize) { }
 
     const std::string buildCompositeKeyNamespace(K key, N ns) {
-        rocksdb::Slice keySlice = keySerializer_->serialize(key);
-        rocksdb::Slice namespaceSlice = namespaceSerializer_->serialize(ns);
+        std::string keySlice = keySerializer_->serialize(key);
+        std::string namespaceSlice = namespaceSerializer_->serialize(ns);
         std::string compositeString;
         compositeString.reserve(keySlice.size() + namespaceSlice.size());
         compositeString.append(keySlice.data(), keySlice.size());
@@ -47,8 +45,8 @@ public:
     }
 
 private:
-    const std::shared_ptr<TypeSerializer<K, rocksdb::Slice>> keySerializer_;
-    const std::shared_ptr<TypeSerializer<N, rocksdb::Slice>> namespaceSerializer_;
+    const std::shared_ptr<TypeSerializer<K>> keySerializer_;
+    const std::shared_ptr<TypeSerializer<N>> namespaceSerializer_;
     const int32_t keyGroupPrefixBytes_;
     const int32_t initialSize_;
 };

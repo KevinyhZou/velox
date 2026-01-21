@@ -34,9 +34,9 @@ public:
         const rocksdb::ReadOptions* readOptions,
         const rocksdb::WriteOptions* writeOptions,
         rocksdb::ColumnFamilyHandle* columnFamily,
-        const std::shared_ptr<stateful::TypeSerializer<K, rocksdb::Slice>> keySerializer,
-        const std::shared_ptr<stateful::TypeSerializer<N, rocksdb::Slice>> namespaceSerializer,
-        const std::shared_ptr<stateful::TypeSerializer<V, rocksdb::Slice>> valueSerializer,
+        const std::shared_ptr<stateful::TypeSerializer<K>> keySerializer,
+        const std::shared_ptr<stateful::TypeSerializer<N>> namespaceSerializer,
+        const std::shared_ptr<stateful::TypeSerializer<V>> valueSerializer,
         const V defaultValue) 
         : db_(db),
         columnFamily_(columnFamily),
@@ -57,7 +57,7 @@ public:
         return sharedKeyAndNamespaceSerializer_->buildCompositeKeyNamespace(key, ns);
     }
 
-    const rocksdb::Slice serializeValue(V value) {
+    const std::string serializeValue(V value) {
         return valueSerializer_->serialize(value);
     }
 
@@ -70,11 +70,11 @@ public:
     }
 
     V get(K key, N ns) {
-        const std::string keySlice = serializeCurrentKeyWithGroupAndNamespace(key, ns);
+        const std::string keyStr = serializeCurrentKeyWithGroupAndNamespace(key, ns);
         try {
-            LOG(INFO) << "key:" << key << " ns:" << ns << " keyslice:" << keySlice;
-            rocksdb::PinnableSlice value;
-            auto status = db_->Get(*readOptions_, columnFamily_, keySlice, &value);
+            LOG(INFO) << "key:" << key << " ns:" << ns << " keyslice:" << keyStr;
+            std::string value;
+            auto status = db_->Get(*readOptions_, columnFamily_, keyStr, &value);
             if (!status.ok()) {
                 LOG(INFO) << "return default value:" << status.ToString();
                 return defaultValue_;
@@ -88,11 +88,11 @@ public:
     }
 
     const void put(K key, N ns, V value) {
-        const std::string keySlice = serializeCurrentKeyWithGroupAndNamespace(key, ns);
-        LOG(INFO) << "putK:" << keySlice;
-        const rocksdb::Slice valueSlice = valueSerializer_->serialize(value);
+        const std::string keyStr = serializeCurrentKeyWithGroupAndNamespace(key, ns);
+        LOG(INFO) << "putK:" << keyStr;
+        const std::string valueStr = valueSerializer_->serialize(value);
         try {
-            auto status = db_->Put(*writeOptions_, columnFamily_, keySlice, valueSlice);
+            auto status = db_->Put(*writeOptions_, columnFamily_, keyStr, valueStr);
             if (!status.ok()) {
                 VELOX_FAIL("Failed to put value into rocksdb, with key {}, namespace {}", key, ns);
             }
@@ -102,10 +102,10 @@ public:
     }
 
     const void remove(K key, N ns) {
-        const rocksdb::Slice keyBytes = serializeCurrentKeyWithGroupAndNamespace(key, ns);
+        const std::string keyStr = serializeCurrentKeyWithGroupAndNamespace(key, ns);
         LOG(INFO) << "already remove:" << key << " ns:" << ns;
         try {
-            auto status = db_->Delete(*writeOptions_, columnFamily_, keyBytes);
+            auto status = db_->Delete(*writeOptions_, columnFamily_, keyStr);
             if (!status.ok()) {
                 VELOX_FAIL("Failed to remove from rocksdb:{}, with key {}, namespace:{}", key, ns);
             }
@@ -122,9 +122,9 @@ protected:
     N currentNamespace_;
     V defaultValue_;
     int32_t keyGroupPrefixBytes_;
-    const std::shared_ptr<stateful::TypeSerializer<K, rocksdb::Slice>> keySerializer_;
-    const std::shared_ptr<stateful::TypeSerializer<N, rocksdb::Slice>> namespaceSerializer_;
-    const std::shared_ptr<stateful::TypeSerializer<V, rocksdb::Slice>> valueSerializer_;
+    const std::shared_ptr<stateful::TypeSerializer<K>> keySerializer_;
+    const std::shared_ptr<stateful::TypeSerializer<N>> namespaceSerializer_;
+    const std::shared_ptr<stateful::TypeSerializer<V>> valueSerializer_;
     const std::shared_ptr<stateful::SerializedCompositeKeyBuilder<K, N>> sharedKeyAndNamespaceSerializer_;
 };
 
@@ -136,9 +136,9 @@ public:
         const rocksdb::ReadOptions* readOptions,
         const rocksdb::WriteOptions* writeOptions,
         rocksdb::ColumnFamilyHandle* columnFamily,
-        const std::shared_ptr<stateful::TypeSerializer<K, rocksdb::Slice>> keySerializer,
-        const std::shared_ptr<stateful::TypeSerializer<N, rocksdb::Slice>> namespaceSerializer,
-        const std::shared_ptr<stateful::TypeSerializer<V, rocksdb::Slice>> valueSerializer,
+        const std::shared_ptr<stateful::TypeSerializer<K>> keySerializer,
+        const std::shared_ptr<stateful::TypeSerializer<N>> namespaceSerializer,
+        const std::shared_ptr<stateful::TypeSerializer<V>> valueSerializer,
         const V defaultValue)
     : RocksDBState<K, N, V>(db, readOptions, writeOptions, columnFamily, keySerializer, namespaceSerializer, valueSerializer, defaultValue) {}
 
@@ -165,9 +165,9 @@ public:
         rocksdb::ReadOptions* readOptions,
         rocksdb::WriteOptions* writeOptions,
         rocksdb::ColumnFamilyHandle* columnFamily,
-        std::shared_ptr<stateful::TypeSerializer<K, rocksdb::Slice>> keySerializer,
-        std::shared_ptr<stateful::TypeSerializer<N, rocksdb::Slice>> namespaceSerializer,
-        std::shared_ptr<stateful::TypeSerializer<ArrayVectorPtr, rocksdb::Slice>> valueSerializer)
+        std::shared_ptr<stateful::TypeSerializer<K>> keySerializer,
+        std::shared_ptr<stateful::TypeSerializer<N>> namespaceSerializer,
+        std::shared_ptr<stateful::TypeSerializer<ArrayVectorPtr>> valueSerializer)
     : RocksDBState<K, N, ArrayVectorPtr>(db, readOptions, writeOptions, columnFamily, keySerializer, namespaceSerializer, valueSerializer) {}
     
     std::list<V>& get(K key, N ns) override {
@@ -202,9 +202,9 @@ public:
         rocksdb::ReadOptions* readOptions,
         rocksdb::WriteOptions* writeOptions,
         rocksdb::ColumnFamilyHandle* columnFamily,
-        std::shared_ptr<stateful::TypeSerializer<K, rocksdb::Slice>> keySerializer,
-        std::shared_ptr<stateful::TypeSerializer<N, rocksdb::Slice>> namespaceSerializer,
-        std::shared_ptr<stateful::TypeSerializer<MapVectorPtr, rocksdb::Slice>> valueSerializer)
+        std::shared_ptr<stateful::TypeSerializer<K>> keySerializer,
+        std::shared_ptr<stateful::TypeSerializer<N>> namespaceSerializer,
+        std::shared_ptr<stateful::TypeSerializer<MapVectorPtr>> valueSerializer)
     : RocksDBState<K, N, MapVectorPtr>(db, readOptions, writeOptions, columnFamily, keySerializer, namespaceSerializer, valueSerializer) {}
 
     UV get(K key, N ns, UK userKey) override {

@@ -15,7 +15,7 @@
 */
 
 #include "velox/experimental/stateful/state/RocksDBKeyedStateBackend.h"
-#include <common/memory/MemoryPool.h>
+#include "velox/common/memory/MemoryPool.h"
 #include "velox/type/Type.h"
 #include "velox/vector/ComplexVector.h"
 #include "velox/experimental/stateful/state/State.h"
@@ -79,15 +79,14 @@ std::shared_ptr<ValueState<uint32_t, int64_t, RowVectorPtr>> RocksDBKeyedStateBa
     if (!operatorId.empty() && stateOperators_[stateName] != operatorId) {
         VELOX_FAIL("The rocksdb state {} is not matched with the operatorId: {}", stateName, operatorId);
     }
-    using B = rocksdb::Slice;
     memory::MemoryPool* pool = stateDescriptor.memoryPool();
-    std::shared_ptr<ValueSerializer<uint32_t, B>> keySerializer = 
-        std::dynamic_pointer_cast<ValueSerializer<uint32_t, B>>(createSerializer<B>(
+    std::shared_ptr<ValueSerializer<uint32_t>> keySerializer = 
+        std::dynamic_pointer_cast<ValueSerializer<uint32_t>>(createSerializer(
             stateKeys_[stateName]->isInteger() ? stateKeys_[stateName] : std::make_shared<ScalarType<TypeKind::INTEGER>>(), true, pool));
-    std::shared_ptr<ValueSerializer<int64_t, B>> namespaceSerializer =
-        std::dynamic_pointer_cast<ValueSerializer<int64_t, B>>(createSerializer<B>(stateNamespaces_[stateName], false,pool));
-    std::shared_ptr<ComplexVectorSerializer<RowVectorPtr, B>> valueSerializer =
-        std::dynamic_pointer_cast<ComplexVectorSerializer<RowVectorPtr, B>>(createSerializer<B>(stateValues_[stateName], false, pool));
+    std::shared_ptr<ValueSerializer<int64_t>> namespaceSerializer =
+        std::dynamic_pointer_cast<ValueSerializer<int64_t>>(createSerializer(stateNamespaces_[stateName], false,pool));
+    std::shared_ptr<ComplexVectorSerializer<RowVectorPtr>> valueSerializer =
+        std::dynamic_pointer_cast<ComplexVectorSerializer<RowVectorPtr>>(createSerializer(stateValues_[stateName], false, pool));
     return std::make_shared<RocksDBValueState<uint32_t, int64_t, RowVectorPtr>>(
         db_, readOptions_, writeOptions_, stateColumnFamilies_[stateName],keySerializer, namespaceSerializer, valueSerializer, nullptr);
 }
