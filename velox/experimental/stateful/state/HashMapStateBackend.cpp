@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 #include "velox/experimental/stateful/state/HashMapStateBackend.h"
+#include "velox/experimental/stateful/state/StateBackend.h"
 #include "velox/experimental/stateful/state/HeapKeyedStateBackend.h"
 
 namespace facebook::velox::stateful {
 
-KeyedStateBackendPtr HashMapStateBackend::createKeyedStateBackend(
-    KeyedStateBackendParameters parameters) {
+HashMapStateBackend::HashMapStateBackend(
+  const std::shared_ptr<const KeyedStateBackendParameters> parameters) : StateBackend(parameters) {}
+
+KeyedStateBackendPtr HashMapStateBackend::createKeyedStateBackend() {
   return std::make_shared<HeapKeyedStateBackend>();
 }
 

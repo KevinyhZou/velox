@@ -15,6 +15,8 @@
 */
 
 #include "velox/experimental/stateful/state/RocksDBKeyedStateBackend.h"
+#include <common/memory/MemoryPool.h>
+#include "velox/type/Type.h"
 #include "velox/vector/ComplexVector.h"
 #include "velox/experimental/stateful/state/State.h"
 #include "velox/experimental/stateful/state/RocksDBState.h"
@@ -32,9 +34,8 @@ RocksDBKeyedStateBackend::RocksDBKeyedStateBackend(
     const std::unordered_map<std::string, std::string>& stateOperators,
     const std::unordered_map<std::string, TypePtr>& stateKeys,
     const std::unordered_map<std::string, TypePtr>& stateNamespaces,
-    const std::unordered_map<std::string, TypePtr>& stateValues,
-    memory::MemoryPool* pool ) 
-    : KeyedStateBackend(pool), db_(db),
+    const std::unordered_map<std::string, TypePtr>& stateValues) 
+    : KeyedStateBackend(), db_(db),
     readOptions_(readOptions),
     writeOptions_(writeOptions),
     states_(states),
@@ -42,7 +43,11 @@ RocksDBKeyedStateBackend::RocksDBKeyedStateBackend(
     stateNamespaces_(stateNamespaces),
     stateValues_(stateValues),
     stateOperators_(stateOperators),
-    stateColumnFamilies_(stateColumnFamilies) {}
+    stateColumnFamilies_(stateColumnFamilies) {
+        VELOX_CHECK(db_ != nullptr, "rocksdb can not be null");
+        VELOX_CHECK(readOptions_ != nullptr, "rocksdb read options can not be null");
+        VELOX_CHECK(writeOptions_ != nullptr, "rocksdb write options can not be null");   
+    }
 
 void RocksDBKeyedStateBackend::checkValidState(const std::string& stateName) {
     auto stateIt = std::find(states_.begin(), states_.end(), stateName);
@@ -69,22 +74,22 @@ void RocksDBKeyedStateBackend::checkValidState(const std::string& stateName) {
 
 std::shared_ptr<ValueState<uint32_t, int64_t, RowVectorPtr>> RocksDBKeyedStateBackend::getOrCreateValueState(StateDescriptor& stateDescriptor) {
     const std::string stateName = stateDescriptor.name();
-    
     checkValidState(stateName);
-
     const std::string operatorId = stateDescriptor.operatorId();
-    if (stateOperators_[stateName] != operatorId) {
+    if (!operatorId.empty() && stateOperators_[stateName] != operatorId) {
         VELOX_FAIL("The rocksdb state {} is not matched with the operatorId: {}", stateName, operatorId);
     }
     using B = rocksdb::Slice;
+    memory::MemoryPool* pool = stateDescriptor.memoryPool();
     std::shared_ptr<ValueSerializer<uint32_t, B>> keySerializer = 
-        std::dynamic_pointer_cast<ValueSerializer<uint32_t, B>>(createSerializer<B>(stateKeys_[stateName], pool_));
+        std::dynamic_pointer_cast<ValueSerializer<uint32_t, B>>(createSerializer<B>(
+            stateKeys_[stateName]->isInteger() ? stateKeys_[stateName] : std::make_shared<ScalarType<TypeKind::INTEGER>>(), true, pool));
     std::shared_ptr<ValueSerializer<int64_t, B>> namespaceSerializer =
-        std::dynamic_pointer_cast<ValueSerializer<int64_t, B>>(createSerializer<B>(stateNamespaces_[stateName], pool_));
+        std::dynamic_pointer_cast<ValueSerializer<int64_t, B>>(createSerializer<B>(stateNamespaces_[stateName], false,pool));
     std::shared_ptr<ComplexVectorSerializer<RowVectorPtr, B>> valueSerializer =
-        std::dynamic_pointer_cast<ComplexVectorSerializer<RowVectorPtr, B>>(createSerializer<B>(stateValues_[stateName], pool_));
+        std::dynamic_pointer_cast<ComplexVectorSerializer<RowVectorPtr, B>>(createSerializer<B>(stateValues_[stateName], false, pool));
     return std::make_shared<RocksDBValueState<uint32_t, int64_t, RowVectorPtr>>(
-        db_, readOptions_, writeOptions_, stateColumnFamilies_[stateName],keySerializer, namespaceSerializer, valueSerializer);
+        db_, readOptions_, writeOptions_, stateColumnFamilies_[stateName],keySerializer, namespaceSerializer, valueSerializer, nullptr);
 }
 
 std::shared_ptr<ListState<uint32_t, long, RowVectorPtr>> RocksDBKeyedStateBackend::getOrCreateListState(StateDescriptor& stateDescriptor) {

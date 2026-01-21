@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #include "velox/experimental/stateful/StatefulOperator.h"
+#include <exec/ProbeOperatorState.h>
 #include "velox/experimental/stateful/state/StateBackend.h"
 #include "velox/experimental/stateful/StatefulTask.h"
 #include "velox/experimental/stateful/StreamElement.h"
@@ -101,15 +102,11 @@ void StatefulOperator::processWatermark(long timestamp, int index) {
   }
 }
 
-void StatefulOperator::initializeState(StateBackend* stateBackend) {
+void StatefulOperator::initializeStateBackend(StateBackend* stateBackend) {
   if (!stateHandler_) {
-    if (!keyedStateBackendParameters_) {
-      keyedStateBackendParameters_ = std::make_shared<KeyedStateBackendParameters>(StateBackendType::HEAP, 
-        op()->operatorCtx()->driverCtx()->task->taskId(), op()->operatorId());
-    }
     stateHandler_ = std::make_shared<StreamOperatorStateHandler>(
         op()->operatorId(),
-        stateBackend->createKeyedStateBackend(*keyedStateBackendParameters_));
+        stateBackend->createKeyedStateBackend());
   }
   auto snapshotable = dynamic_cast<Snapshotable*>(op().get());
   if (snapshotable) {
@@ -119,7 +116,13 @@ void StatefulOperator::initializeState(StateBackend* stateBackend) {
   // TODO: flink restore is a seperated logic
   // stateHandler_->initializeState();
   for (auto& target : targets_) {
-    target->initializeState(stateBackend);
+    target->initializeStateBackend(stateBackend);
+  }
+}
+
+void StatefulOperator::initializeState() {
+  for (auto& target : targets_) {
+    target->initializeState();
   }
 }
 

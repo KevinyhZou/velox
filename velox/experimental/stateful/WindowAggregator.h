@@ -17,7 +17,6 @@
 
 #include <experimental/stateful/state/StateBackend.h>
 #include <memory>
-#include <mutex>
 #include "velox/exec/Driver.h"
 #include "velox/exec/Operator.h"
 #include "velox/experimental/stateful/InternalTimerService.h"
@@ -44,10 +43,11 @@ class WindowAggregator : public StatefulOperator, public Triggerable<uint32_t, l
     const bool useDayLightSaving,
     const bool isEventTime,
     const int windowStartIndex,
-    const int windowEndIndex,
-    const std::shared_ptr<const KeyedStateBackendParameters>& backendParameters);
+    const int windowEndIndex);
 
   void initialize() override;
+
+  void initializeState() override;
 
   void addInput(RowVectorPtr input) override;
 

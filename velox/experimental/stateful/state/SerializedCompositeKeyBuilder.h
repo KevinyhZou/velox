@@ -15,34 +15,42 @@
 */
 #pragma once
 
+#include <sys/socket.h>
 #include "velox/experimental/stateful/TypeSerializer.h"
 #include "rocksdb/slice.h"
 #include <cstdint>
+#include <memory>
 
 namespace facebook::velox::stateful {
 
-template<typename K>
+template<typename K, typename N>
 class SerializedCompositeKeyBuilder {
 public:
     SerializedCompositeKeyBuilder(
         const std::shared_ptr<TypeSerializer<K, rocksdb::Slice>> keySerializer,
+        const std::shared_ptr<TypeSerializer<N, rocksdb::Slice>> namespaceSerializer,
         int32_t keyGroupPrefixBytes,
-        int32_t initialSize) {
+        int32_t initialSize) :
+        keySerializer_(keySerializer),
+        namespaceSerializer_(namespaceSerializer),
+        keyGroupPrefixBytes_(keyGroupPrefixBytes),
+        initialSize_(initialSize) { }
 
-    }
-    void setKeyAndKeyGroup(K key, int32_t keyGroupId) {
-        
+    const std::string buildCompositeKeyNamespace(K key, N ns) {
+        rocksdb::Slice keySlice = keySerializer_->serialize(key);
+        rocksdb::Slice namespaceSlice = namespaceSerializer_->serialize(ns);
+        std::string compositeString;
+        compositeString.reserve(keySlice.size() + namespaceSlice.size());
+        compositeString.append(keySlice.data(), keySlice.size());
+        compositeString.append(namespaceSlice.data(), namespaceSlice.size());
+        return compositeString;
     }
 
-    template<typename N>
-    void setNamespace(N ns, const std::shared_ptr<TypeSerializer<N, rocksdb::Slice>> namespaceSerializer) {
-
-    }
-
-    template<typename N>
-    const rocksdb::Slice buildCompositeKeyNamespace(N ns, const std::shared_ptr<TypeSerializer<N, rocksdb::Slice>> namespaceSerializer) {
-        return nullptr;
-    }
+private:
+    const std::shared_ptr<TypeSerializer<K, rocksdb::Slice>> keySerializer_;
+    const std::shared_ptr<TypeSerializer<N, rocksdb::Slice>> namespaceSerializer_;
+    const int32_t keyGroupPrefixBytes_;
+    const int32_t initialSize_;
 };
 
 }

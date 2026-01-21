@@ -77,11 +77,6 @@ protected:
             VELOX_FAIL("Not support output type: {} for type serializer", typeid(B).name());
         }
     }
-
-    VectorSerde::Options getDefaultCompressionOptions() {
-        VectorSerde::Options opts(common::CompressionKind::CompressionKind_SNAPPY, 0.8);
-        return opts;
-    }
 };
 
 template<typename D, typename B>
@@ -155,10 +150,9 @@ public:
 
     const B serialize(const D& t) override {
         std::ostringstream output;
-        auto compressionOptions = TypeSerializer<D, B>::getDefaultCompressionOptions();
         serde_->serializeSingleColumn(
             t, 
-            &compressionOptions,
+            nullptr,
             pool_,
             &output);
         std::string str = output.str();
@@ -167,7 +161,6 @@ public:
 
     const D deserialize(const B& bytes) override { 
         const std::pair<const char*, const size_t> inputBytes = TypeSerializer<D, B>::convertToBytesInput(bytes);
-        auto compressionOptions = TypeSerializer<D, B>::getDefaultCompressionOptions();
         auto byteStream = TypeSerializer<D, B>::toByteStream(inputBytes.first, inputBytes.second);
         D result;
         VectorPtr vec = std::dynamic_pointer_cast<BaseVector>(result);
@@ -176,7 +169,7 @@ public:
             pool_, 
             dataType_, 
             &vec,
-            &compressionOptions);
+            nullptr);
         return result; 
     }
 
@@ -199,23 +192,38 @@ private:
 };
 
 template<typename B>
-TypeSerializerPtr createSerializer(const TypePtr& type, memory::MemoryPool* pool = nullptr) {
+TypeSerializerPtr createSerializer(const TypePtr& type, const bool isUnsigned = false, memory::MemoryPool* pool = nullptr) {
     const TypeKind kind = type->kind();
     if(kind == TypeKind::INTEGER) {
-        using T0 = TypeTraits<TypeKind::INTEGER>::NativeType;
-        return std::make_shared<ValueSerializer<T0, B>>();
+        if (isUnsigned) {
+            return std::make_shared<ValueSerializer<uint32_t, B>>();
+        } else {
+            return std::make_shared<ValueSerializer<int32_t, B>>();
+        }
     } else if (kind == TypeKind::BIGINT) {
-        using T1 = TypeTraits<TypeKind::BIGINT>::NativeType;
-        return std::make_shared<ValueSerializer<T1, B>>();
+        if (isUnsigned) {
+            return std::make_shared<ValueSerializer<uint64_t, B>>();
+        } else {
+            return std::make_shared<ValueSerializer<int64_t, B>>();
+        }
     } else if (kind == TypeKind::HUGEINT) {
-        using T2 = TypeTraits<TypeKind::HUGEINT>::NativeType;
-        return std::make_shared<ValueSerializer<T2, B>>();
+        if (isUnsigned) {
+            return std::make_shared<ValueSerializer<uint128_t, B>>();
+        } else {
+            return std::make_shared<ValueSerializer<int128_t, B>>();
+        }
     } else if (kind == TypeKind::SMALLINT) {
-        using T3 = TypeTraits<TypeKind::SMALLINT>::NativeType;
-        return std::make_shared<ValueSerializer<T3, B>>();
+        if (isUnsigned) {
+            return std::make_shared<ValueSerializer<uint16_t, B>>();
+        } else {
+            return std::make_shared<ValueSerializer<int16_t, B>>();
+        }
     } else if (kind == TypeKind::TINYINT) {
-        using T4 = TypeTraits<TypeKind::TINYINT>::NativeType;
-        return std::make_shared<ValueSerializer<T4, B>>();
+        if (isUnsigned) {
+            return std::make_shared<ValueSerializer<uint8_t, B>>();
+        } else {
+            return std::make_shared<ValueSerializer<int8_t, B>>();
+        }
     } else if (kind == TypeKind::REAL) {
         using T5 = TypeTraits<TypeKind::REAL>::NativeType;
         return std::make_shared<ValueSerializer<T5, B>>();

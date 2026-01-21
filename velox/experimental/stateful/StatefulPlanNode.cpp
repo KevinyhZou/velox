@@ -254,7 +254,6 @@ folly::dynamic StreamWindowAggregationNode::serialize() const {
   obj["rowtimeIndex"] = rowtimeIndex_;
   obj["windowStartIndex"] = windowStartIndex_;
   obj["windowEndIndex"] = windowEndIndex_;
-  obj["keyedBackendParameters"] = keyedBackendParameters_->serialize();
   return obj;
 }
 
@@ -282,11 +281,6 @@ core::PlanNodePtr StreamWindowAggregationNode::create(const folly::dynamic& obj,
     localAgg = ISerializable::deserialize<core::AggregationNode>(
         obj["localAgg"], context);
   }
-  std::shared_ptr<const KeyedStateBackendParameters> backendParameters = KeyedStateBackendParameters::create(
-    obj["keyedBackendParameters"], context);
-  if (backendParameters->getBackendType() == StateBackendType::ROCKSDB) {
-    backendParameters = RocksDBKeyedStateBackendParameters::create(obj["keyedBackendParameters"], context);
-  }
   return std::make_shared<const StreamWindowAggregationNode>(
       planNodeId,
       aggregation,
@@ -304,8 +298,7 @@ core::PlanNodePtr StreamWindowAggregationNode::create(const folly::dynamic& obj,
       obj["isEventTime"].asBool(),
       obj["rowtimeIndex"].asInt(),
       obj["windowStartIndex"].asInt(),
-      obj["windowEndIndex"].asInt(),
-      backendParameters);
+      obj["windowEndIndex"].asInt());
 }
 
 const std::vector<core::PlanNodePtr>& GroupWindowAggsHandlerNode::sources() const {

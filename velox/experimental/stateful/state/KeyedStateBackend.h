@@ -23,15 +23,13 @@
 #include "velox/experimental/stateful/InternalTimerService.h"
 #include "velox/experimental/stateful/window/Window.h"
 #include "velox/vector/ComplexVector.h"
-#include "velox/common/memory/MemoryPool.h"
 
 namespace facebook::velox::stateful {
 
 // This class is relevent to flink org.apache.flink.runtime.state.KeyedStateBackend.
 class KeyedStateBackend : public Snapshotable, public CheckpointListener {
  public:
-  KeyedStateBackend(memory::MemoryPool* pool = nullptr) : pool_(pool) {}
-
+ 
   virtual std::shared_ptr<MapState<uint32_t, int, RowVectorPtr, int>>
       getOrCreateMapState(StateDescriptor& stateDescriptor) = 0;
 
@@ -64,9 +62,6 @@ class KeyedStateBackend : public Snapshotable, public CheckpointListener {
   const uint32_t getCurrentKey() {
     return keyContext_->getCurrentKey();
   }
-
-protected:
-  memory::MemoryPool* pool_;
 
 private:
     std::shared_ptr<InternalKeyContext<uint32_t>> keyContext_;

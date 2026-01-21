@@ -36,9 +36,8 @@ WindowAggregator::WindowAggregator(
     const bool useDayLightSaving,
     const bool isEventTime,
     const int windowStartIndex,
-    const int windowEndIndex,
-    const std::shared_ptr<const KeyedStateBackendParameters>& backendParameters)
-    : StatefulOperator(std::move(globalAggregator), std::move(targets), backendParameters), Triggerable<uint32_t, long>(),
+    const int windowEndIndex)
+    : StatefulOperator(std::move(globalAggregator), std::move(targets)), Triggerable<uint32_t, long>(),
       localAggregator_(std::move(localAggregator)),
       keySelector_(std::move(keySelector)),
       sliceAssigner_(std::move(sliceAssigner)),
@@ -55,8 +54,10 @@ void WindowAggregator::initialize() {
   if (localAggregator_) {
     localAggregator_->initialize();
   }
+}
 
-  StateDescriptor stateDesc("window-aggs");
+void WindowAggregator::initializeState() {
+  StateDescriptor stateDesc("window-aggs", "", memoryPool());
   windowState_ = stateHandler()->getValueState(stateDesc);
   windowTimerService_ = stateHandler()->createTimerService(this);
 }

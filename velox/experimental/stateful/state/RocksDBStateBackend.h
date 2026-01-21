@@ -16,6 +16,7 @@
 #pragma  once
 
 #include <rocksdb/options.h>
+#include <memory>
 #include "velox/common/memory/MemoryPool.h"
 #include "velox/experimental/stateful/state/StateBackend.h"
 #include "rocksdb/db.h"
@@ -23,17 +24,18 @@
 
 namespace facebook::velox::stateful {
 
+class RocksDBKeyedStateBackendParameters;
+
 class RocksDBStateBackend : public StateBackend {
 public:
-    RocksDBStateBackend(memory::MemoryPool* pool) : pool_(pool) {}
+    RocksDBStateBackend(const std::shared_ptr<const RocksDBKeyedStateBackendParameters> params)
+    : StateBackend(std::dynamic_pointer_cast<const KeyedStateBackendParameters>(params)) {}
 
     std::string getName() const override;
 
     folly::dynamic serialize() const override;
 
-    std::shared_ptr<KeyedStateBackend> createKeyedStateBackend(KeyedStateBackendParameters parameters) override;
-private:
-    memory::MemoryPool* pool_;
+    std::shared_ptr<KeyedStateBackend> createKeyedStateBackend() override;
 };
 
 class RocksDBKeyedStateBackendParameters : public KeyedStateBackendParameters {
@@ -41,7 +43,7 @@ public:
     RocksDBKeyedStateBackendParameters(
         const StateBackendType backendType,
         const std::string jobId,
-        const int32_t operatorId,
+        const std::string operatorId,
         const int64_t dbHandle,
         const int64_t readOptionHandle,
         const int64_t writeOptionHandle,
@@ -52,23 +54,23 @@ public:
         const std::unordered_map<std::string, TypePtr>& stateNamespaces,
         const std::unordered_map<std::string, TypePtr>& stateValues);
 
-    rocksdb::DB* getDB();
+    rocksdb::DB* getDB() const;
 
-    const rocksdb::ReadOptions* getReadOptions();
+    const rocksdb::ReadOptions* getReadOptions() const;
 
-    const rocksdb::WriteOptions* getWriteOptions();
+    const rocksdb::WriteOptions* getWriteOptions() const;
 
-    const std::unordered_map<std::string, rocksdb::ColumnFamilyHandle*> getColumnFamilies();
+    const std::unordered_map<std::string, rocksdb::ColumnFamilyHandle*> getColumnFamilies() const;
 
-    const std::list<std::string> getStates();
+    const std::list<std::string> getStates() const;
 
-    const std::unordered_map<std::string, std::string> getStateOperators();
+    const std::unordered_map<std::string, std::string> getStateOperators() const;
 
-    const std::unordered_map<std::string, TypePtr> getStateKeys();
+    const std::unordered_map<std::string, TypePtr> getStateKeys() const;
 
-    const std::unordered_map<std::string, TypePtr> getStateNamespaces();
+    const std::unordered_map<std::string, TypePtr> getStateNamespaces() const;
 
-    const std::unordered_map<std::string, TypePtr> getStateValues();
+    const std::unordered_map<std::string, TypePtr> getStateValues() const;
 
     folly::dynamic serialize() const override;
     

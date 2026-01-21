@@ -19,6 +19,7 @@
 #include <folly/json/dynamic.h>
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
+#include <memory>
 #include <unordered_map>
 
 namespace facebook::velox::stateful {
@@ -27,8 +28,9 @@ std::string RocksDBStateBackend::getName() const {
     return "rocksdb";
 }
 
-std::shared_ptr<KeyedStateBackend> RocksDBStateBackend::createKeyedStateBackend(KeyedStateBackendParameters parameters) {
-    RocksDBKeyedStateBackendParameters* rocksdbStateParams = static_cast<RocksDBKeyedStateBackendParameters*>(&parameters);
+std::shared_ptr<KeyedStateBackend> RocksDBStateBackend::createKeyedStateBackend() {
+    const std::shared_ptr<const RocksDBKeyedStateBackendParameters> rocksdbStateParams = 
+        std::dynamic_pointer_cast<const RocksDBKeyedStateBackendParameters>(parameters_);
     VELOX_CHECK(rocksdbStateParams != nullptr, "The provided parameters is not for rocksdb state backend.");
     return std::make_shared<RocksDBKeyedStateBackend>(
         rocksdbStateParams->getDB(),
@@ -39,8 +41,7 @@ std::shared_ptr<KeyedStateBackend> RocksDBStateBackend::createKeyedStateBackend(
         rocksdbStateParams->getStateOperators(),
         rocksdbStateParams->getStateKeys(),
         rocksdbStateParams->getStateNamespaces(),
-        rocksdbStateParams->getStateValues(),
-        pool_);
+        rocksdbStateParams->getStateValues());
 }
 
 folly::dynamic RocksDBStateBackend::serialize() const {
@@ -51,7 +52,7 @@ folly::dynamic RocksDBStateBackend::serialize() const {
 RocksDBKeyedStateBackendParameters::RocksDBKeyedStateBackendParameters(
     const StateBackendType backendType,
     const std::string jobId,
-    const int32_t operatorId,
+    const std::string operatorId,
     const int64_t dbHandle,
     const int64_t readOptionHandle,
     const int64_t writeOptionHandle,
@@ -72,25 +73,25 @@ RocksDBKeyedStateBackendParameters::RocksDBKeyedStateBackendParameters(
     stateValues_(stateValues), 
     stateNamespaces_(stateNamespaces) {}
 
-rocksdb::DB* RocksDBKeyedStateBackendParameters::getDB() {
+rocksdb::DB* RocksDBKeyedStateBackendParameters::getDB() const {
     rocksdb::DB* db = reinterpret_cast<rocksdb::DB*>(dbHandle_);
     VELOX_CHECK(db != nullptr, "Failed to convert rocksdb native handle: {}", dbHandle_);
     return db;
 }
 
-const rocksdb::ReadOptions* RocksDBKeyedStateBackendParameters::getReadOptions() {
+const rocksdb::ReadOptions* RocksDBKeyedStateBackendParameters::getReadOptions() const {
     rocksdb::ReadOptions* readOptions = reinterpret_cast<rocksdb::ReadOptions*>(readOptionHandle_);
     VELOX_CHECK(readOptions != nullptr, "Failed to convert rocksdb read options: {}", readOptionHandle_);
     return readOptions;
 }
 
-const rocksdb::WriteOptions* RocksDBKeyedStateBackendParameters::getWriteOptions() {
+const rocksdb::WriteOptions* RocksDBKeyedStateBackendParameters::getWriteOptions() const {
     rocksdb::WriteOptions* writeOptions = reinterpret_cast<rocksdb::WriteOptions*>(writeOptionHandle_);
     VELOX_CHECK(writeOptions != nullptr, "Failed to convert rocksdb write options: {}", writeOptionHandle_);
     return writeOptions;
 }
 
-const std::unordered_map<std::string, rocksdb::ColumnFamilyHandle*> RocksDBKeyedStateBackendParameters::getColumnFamilies() {
+const std::unordered_map<std::string, rocksdb::ColumnFamilyHandle*> RocksDBKeyedStateBackendParameters::getColumnFamilies() const {
     std::unordered_map<std::string, rocksdb::ColumnFamilyHandle*> cfs;
     for (const auto& [name, cf] : columnFamilyHandles_) {
         rocksdb::ColumnFamilyHandle* columnFamily = reinterpret_cast<rocksdb::ColumnFamilyHandle*>(cf);
@@ -99,23 +100,23 @@ const std::unordered_map<std::string, rocksdb::ColumnFamilyHandle*> RocksDBKeyed
     return cfs;
 }
 
-const std::list<std::string> RocksDBKeyedStateBackendParameters::getStates() {
+const std::list<std::string> RocksDBKeyedStateBackendParameters::getStates() const {
     return states_;
 }
 
-const std::unordered_map<std::string, std::string> RocksDBKeyedStateBackendParameters::getStateOperators() {
+const std::unordered_map<std::string, std::string> RocksDBKeyedStateBackendParameters::getStateOperators() const {
     return stateOperators_;
 }
 
-const std::unordered_map<std::string, TypePtr> RocksDBKeyedStateBackendParameters::getStateKeys() {
+const std::unordered_map<std::string, TypePtr> RocksDBKeyedStateBackendParameters::getStateKeys() const {
     return stateKeys_;
 }
 
-const std::unordered_map<std::string, TypePtr> RocksDBKeyedStateBackendParameters::getStateNamespaces() {
+const std::unordered_map<std::string, TypePtr> RocksDBKeyedStateBackendParameters::getStateNamespaces() const {
     return stateNamespaces_;
 }
 
-const std::unordered_map<std::string, TypePtr> RocksDBKeyedStateBackendParameters::getStateValues() {
+const std::unordered_map<std::string, TypePtr> RocksDBKeyedStateBackendParameters::getStateValues() const {
     return stateValues_;
 }
 
@@ -123,6 +124,7 @@ folly::dynamic RocksDBKeyedStateBackendParameters::serialize() const {
     folly::dynamic obj;
     obj["jobId"] = getJobId();
     obj["operatorId"] = getOperatorIdentifier();
+    obj["stateBackendType"] = static_cast<int32_t>(getBackendType());
     obj["dbHandle"] = dbHandle_;
     obj["readOptionHandle"] = readOptionHandle_;
     obj["writeOptionHandle"] = writeOptionHandle_;
@@ -153,7 +155,7 @@ folly::dynamic RocksDBKeyedStateBackendParameters::serialize() const {
         stateValues[state] = value->serialize();
     }
     obj["stateOperators"] = stateOperators;
-    obj["stateColumnFamilies"] = stateColumnFamilies;
+    obj["columnFamilies"] = stateColumnFamilies;
     obj["stateKeys"] = stateKeys;
     obj["stateNamespaces"] = stateNamespaces;
     obj["stateValues"] = stateValues;
@@ -163,7 +165,7 @@ folly::dynamic RocksDBKeyedStateBackendParameters::serialize() const {
 std::shared_ptr<const RocksDBKeyedStateBackendParameters> RocksDBKeyedStateBackendParameters::create(const folly::dynamic& obj, void* context) {
     const StateBackendType backendType = static_cast<StateBackendType>(obj["stateBackendType"].asInt());
     const std::string jobId = obj["jobId"].asString();
-    const int32_t operatorId = obj["operatorId"].asInt();
+    const std::string operatorId = obj["operatorId"].asString();
     const int64_t dbHandle = obj["dbHandle"].asInt();
     const int64_t dbReadOptionHandle = obj["readOptionHandle"].asInt();
     const int64_t dbWriteOptionHandle = obj["writeOptionHandle"].asInt();
@@ -179,7 +181,7 @@ std::shared_ptr<const RocksDBKeyedStateBackendParameters> RocksDBKeyedStateBacke
     for (const auto& stateOp : obj["stateOperators"].items()) {
         stateOperators[stateOp.first.asString()] = stateOp.second.asString();
     }
-    for (const auto& stateCF : obj["stateColumnFamilies"].items()) {
+    for (const auto& stateCF : obj["columnFamilies"].items()) {
         columnFamilies[stateCF.first.asString()] = stateCF.second.asInt();
     }
     for (const auto& stateKey : obj["stateKeys"].items()) {

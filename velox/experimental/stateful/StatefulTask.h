@@ -59,7 +59,7 @@ class StatefulTask : public exec::Task {
 
   void notifyWatermark(long watermark, int index);
 
-  void initializeState();
+  void initializeState(const std::shared_ptr<const KeyedStateBackendParameters> params);
 
   void snapshotState();
 
@@ -86,7 +86,7 @@ class StatefulTask : public exec::Task {
 
   void initOperators();
 
-  void initStateBackend();
+  void initStateBackend(const std::shared_ptr<const KeyedStateBackendParameters> parameters);
 
   StreamElementPtr popOutput();
 

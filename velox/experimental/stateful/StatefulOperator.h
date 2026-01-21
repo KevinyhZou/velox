@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include "velox/common/memory/MemoryPool.h"
 #include "velox/exec/Operator.h"
 #include "velox/experimental/stateful/CombinedWatermarkStatus.h"
 #include "velox/experimental/stateful/state/StateBackend.h"
@@ -42,13 +43,15 @@ class StatefulOperator {
 
   virtual void getOutput();
 
+  virtual void initializeState();
+
   bool sourceEmpty();
 
   virtual void close();
 
   void processWatermark(long timestamp, int index);
 
-  void initializeState(StateBackend* stateBackend);
+  void initializeStateBackend(StateBackend* stateBackend);
 
   void snapshotState();
 
@@ -67,6 +70,10 @@ class StatefulOperator {
       stream << "\tTarget " << i << ": " << targets_[i]->detail() << "\n";
     }
     return stream.str();
+  }
+
+  memory::MemoryPool* memoryPool() {
+    return operator_->pool();
   }
 
   virtual std::string name() const {

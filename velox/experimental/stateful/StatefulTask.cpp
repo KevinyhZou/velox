@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <memory>
 #include "velox/experimental/stateful/StatefulPlanner.h"
 #include "velox/experimental/stateful/StatefulTask.h"
-#include "velox/experimental/stateful/StatefulQueryConfig.h"
-#include "velox/core/QueryConfig.h"
+#include "velox/experimental/stateful/state/StateBackend.h"
 #include "velox/exec/OperatorUtils.h"
 #include "velox/exec/OperatorStats.h"
 #include "velox/experimental/stateful/state/HashMapStateBackend.h"
@@ -59,18 +59,17 @@ StatefulTask::~StatefulTask() {
 
 void StatefulTask::init() {
   initOperators();
-  initStateBackend();
-  operatorChain_->initializeState(statebackend_.get());
+  /// initStateBackend(nullptr);
   operatorChain_->initialize();
 }
 
-void StatefulTask::initStateBackend() {
-  const core::QueryConfig& config = queryCtx()->queryConfig();
-  const StatefulQueryConfig* queryConfig = static_cast<const StatefulQueryConfig*>(&config);
-  if (queryConfig != nullptr && queryConfig->stateBackendType() == StateBackendType::ROCKSDB) {
-    statebackend_ = std::make_unique<RocksDBStateBackend>(pool());
+void StatefulTask::initStateBackend(const std::shared_ptr<const KeyedStateBackendParameters> parameters) {
+  if (parameters->getBackendType() == StateBackendType::ROCKSDB) {
+    const std::shared_ptr<const RocksDBKeyedStateBackendParameters> rocksdbStateParameters =
+      std::dynamic_pointer_cast<const RocksDBKeyedStateBackendParameters>(parameters);
+    statebackend_ = std::make_unique<RocksDBStateBackend>(rocksdbStateParameters);
   } else {
-    statebackend_ = std::make_unique<HashMapStateBackend>();
+    statebackend_ = std::make_unique<HashMapStateBackend>(parameters);
   }
 }
 
@@ -147,9 +146,10 @@ void StatefulTask::notifyWatermark(long watermark, int index) {
   operatorChain_->processWatermark(watermark, index);
 }
 
-void StatefulTask::initializeState() {
-  // TODO: need to be call in flink operator's setup.
-  //operatorChain_->initializeState();
+void StatefulTask::initializeState(const std::shared_ptr<const KeyedStateBackendParameters> params) {
+  initStateBackend(params);
+  operatorChain_->initializeStateBackend(statebackend_.get());
+  operatorChain_->initializeState();
 }
 
 void StatefulTask::snapshotState() {

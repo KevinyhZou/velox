@@ -33,9 +33,7 @@ public:
         const std::unordered_map<std::string, std::string>& stateOperators,
         const std::unordered_map<std::string, TypePtr>& stateKeys,
         const std::unordered_map<std::string, TypePtr>& stateNamespaces,
-        const std::unordered_map<std::string, TypePtr>& stateValues,
-        memory::MemoryPool* pool
-    );
+        const std::unordered_map<std::string, TypePtr>& stateValues);
 
     void checkValidState(const std::string& stateName);
 
