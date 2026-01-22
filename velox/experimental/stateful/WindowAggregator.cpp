@@ -19,8 +19,7 @@
 #include "velox/type/Type.h"
 #include "velox/vector/ComplexVector.h"
 #include "velox/experimental/stateful/WindowAggregator.h"
-#include <experimental/stateful/StatefulOperator.h>
-#include <experimental/stateful/state/StateBackend.h>
+#include "velox/experimental/stateful/StatefulOperator.h"
 #include "velox/experimental/stateful/TimerHeapInternalTimer.h"
 #include "velox/experimental/stateful/window/TimeWindowUtil.h"
 

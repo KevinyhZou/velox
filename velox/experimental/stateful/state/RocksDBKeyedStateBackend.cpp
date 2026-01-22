@@ -117,7 +117,7 @@ std::shared_ptr<ValueState<uint32_t, int64_t, RowVectorPtr>> RocksDBKeyedStateBa
     std::shared_ptr<ComplexVectorSerializer<RowVectorPtr>> valueSerializer =
         std::dynamic_pointer_cast<ComplexVectorSerializer<RowVectorPtr>>(createSerializer(combineToRowType(keyType, valueType), false, pool));
     return std::make_shared<RocksDBValueState<uint32_t, int64_t, RowVectorPtr>>(
-        db_, readOptions_, writeOptions_, stateColumnFamilies_[stateName],keySerializer, namespaceSerializer, valueSerializer, nullptr);
+        db_, readOptions_, writeOptions_, stateColumnFamilies_[stateName], keySerializer, namespaceSerializer, valueSerializer, nullptr, pool);
 }
 
 std::shared_ptr<ListState<uint32_t, long, RowVectorPtr>> RocksDBKeyedStateBackend::getOrCreateListState(StateDescriptor& stateDescriptor) {

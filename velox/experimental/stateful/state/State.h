@@ -18,6 +18,7 @@
 #include <list>
 #include <memory>
 #include <map>
+#include "velox/vector/ComplexVector.h"
 
 namespace facebook::velox::stateful {
 
@@ -41,6 +42,10 @@ class MapState : public State {
   virtual std::map<UK, UV> entries(K key, N ns) = 0;
 
   virtual void remove(K key, N ns, UK userKey) = 0;
+
+  virtual MapVectorPtr vectorGet(K key, N ns) { return nullptr; }
+
+  virtual void vectorPut(K key, N ns, const MapVectorPtr& vec) {}
 };
 
 // This class is relevent to flink org.apache.flink.api.common.ListState.
@@ -49,16 +54,15 @@ class ListState : public State {
  public:
   virtual std::list<S>& get(K key, N ns) = 0;
 
-  // virtual ArrayVectorPtr& vectorGet(K key, N ns) = 0;
+  virtual ArrayVectorPtr vectorGet(K key, N ns) { return nullptr; }
 
   virtual void add(K key, N ns, S value) = 0;
 
-  // virtual void vectorAdd(K key, N ns, const ArrayVectorPtr& vec) = 0;
+  virtual void vectorUpdate(K key, N ns, const ArrayVectorPtr& vec) {}
+
+  virtual void vectorAdd(K key, N ns, const ArrayVectorPtr& vec) {}
 
   virtual void remove(K key, N ns) = 0;
-//  virtual void addAll(std::list<T>& values) = 0;
-
-//  virtual void update(std::list<T>& values) = 0;
 };
 
 // This class is relevent to flink org.apache.flink.api.common.ValueState.

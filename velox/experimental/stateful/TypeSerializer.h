@@ -156,6 +156,10 @@ public:
         }
     }
 
+    const TypePtr getDataType() const {
+        return dataType_;
+    }
+
 private:
     const TypePtr dataType_;
     memory::MemoryPool* pool_;

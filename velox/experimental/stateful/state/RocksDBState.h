@@ -15,8 +15,10 @@
 */
 #pragma once
 
-#include "velox/vector/ComplexVector.h"
+#include "velox/common/memory/MemoryPool.h"
 #include <exception>
+#include <memory>
+#include "velox/vector/ComplexVector.h"
 #include "velox/experimental/stateful/state/State.h"
 #include "velox/experimental/stateful/state/SerializedCompositeKeyBuilder.h"
 #include "velox/experimental/stateful/TypeSerializer.h"
@@ -37,7 +39,8 @@ public:
         const std::shared_ptr<stateful::TypeSerializer<K>> keySerializer,
         const std::shared_ptr<stateful::TypeSerializer<N>> namespaceSerializer,
         const std::shared_ptr<stateful::TypeSerializer<V>> valueSerializer,
-        const V defaultValue) 
+        const V defaultValue,
+        memory::MemoryPool* pool) 
         : db_(db),
         columnFamily_(columnFamily),
         readOptions_(readOptions),
@@ -47,7 +50,8 @@ public:
         namespaceSerializer_(namespaceSerializer),
         valueSerializer_(valueSerializer),
         sharedKeyAndNamespaceSerializer_(
-            std::make_shared<stateful::SerializedCompositeKeyBuilder<K, N>>(keySerializer, namespaceSerializer, keyGroupPrefixBytes_, 0))
+            std::make_shared<stateful::SerializedCompositeKeyBuilder<K, N>>(keySerializer, namespaceSerializer, keyGroupPrefixBytes_, 0)),
+        pool_(pool)
     {}
 
     const std::string serializeCurrentKeyWithGroupAndNamespace(K key, N ns) {
@@ -77,7 +81,6 @@ public:
             if (!status.ok()) {
                 return defaultValue_;
             } else {
-                LOG(INFO) << "return value here:" << value;
                 return valueSerializer_->deserialize(value);
             }
         } catch (const std::exception& e) {
@@ -88,7 +91,6 @@ public:
     const void put(K key, N ns, V value) {
         const std::string keyStr = serializeCurrentKeyWithGroupAndNamespace(key, ns);
         const std::string valueStr = valueSerializer_->serialize(value);
-        LOG(INFO) << "put value:" << valueStr;
         try {
             auto status = db_->Put(*writeOptions_, columnFamily_, keyStr, valueStr);
             if (!status.ok()) {
@@ -124,6 +126,7 @@ protected:
     const std::shared_ptr<stateful::TypeSerializer<N>> namespaceSerializer_;
     const std::shared_ptr<stateful::TypeSerializer<V>> valueSerializer_;
     const std::shared_ptr<stateful::SerializedCompositeKeyBuilder<K, N>> sharedKeyAndNamespaceSerializer_;
+    memory::MemoryPool* pool_;
 };
 
 template<typename K, typename N, typename V>
@@ -137,8 +140,9 @@ public:
         const std::shared_ptr<stateful::TypeSerializer<K>> keySerializer,
         const std::shared_ptr<stateful::TypeSerializer<N>> namespaceSerializer,
         const std::shared_ptr<stateful::TypeSerializer<V>> valueSerializer,
-        const V defaultValue)
-    : RocksDBState<K, N, V>(db, readOptions, writeOptions, columnFamily, keySerializer, namespaceSerializer, valueSerializer, defaultValue) {}
+        const V defaultValue,
+        memory::MemoryPool* pool)
+    : RocksDBState<K, N, V>(db, readOptions, writeOptions, columnFamily, keySerializer, namespaceSerializer, valueSerializer, defaultValue, pool) {}
 
     V value(K key, N ns) override {
         return RocksDBState<K, N, V>::get(key, ns);
@@ -165,28 +169,72 @@ public:
         rocksdb::ColumnFamilyHandle* columnFamily,
         std::shared_ptr<stateful::TypeSerializer<K>> keySerializer,
         std::shared_ptr<stateful::TypeSerializer<N>> namespaceSerializer,
-        std::shared_ptr<stateful::TypeSerializer<ArrayVectorPtr>> valueSerializer)
+        std::shared_ptr<stateful::TypeSerializer<ArrayVectorPtr>> valueSerializer,
+        const ArrayVectorPtr defaultValue,
+        memory::MemoryPool* pool)
     : RocksDBState<K, N, ArrayVectorPtr>(db, readOptions, writeOptions, columnFamily, keySerializer, namespaceSerializer, valueSerializer) {}
+
+    ArrayVectorPtr vectorGet(K key, N ns) override {
+        return RocksDBState<K, N, ArrayVectorPtr>::get(key, ns);
+    }
+
+    void vectorUpdate(K key, N ns, const ArrayVectorPtr& vec) override {  
+        RocksDBState<K, N, ArrayVectorPtr>::put(key, ns, vec);
+    }
+
+    void vectorAdd(K key, N ns, const ArrayVectorPtr& vec) override {
+        ArrayVectorPtr stateVector = RocksDBState<K, N, ArrayVectorPtr>::get(key, ns);
+        if (stateVector) {
+            stateVector->append(vec.get());
+            RocksDBState<K, N, ArrayVectorPtr>::put(stateVector);
+        } else {
+            RocksDBState<K, N, ArrayVectorPtr>::put(key, ns, vec);
+        }
+    }
     
     std::list<V>& get(K key, N ns) override {
-        // std::list<V> result;
-        // ArrayVectorPtr arrayVector = RocksDBState<K, N, ArrayVectorPtr>::get(key, ns);
-        // const VectorPtr& elements = arrayVector->elements();
-        // for (size_t i = 0; i < arrayVector->size(); ++i) {
-        //     arrayVector->asFlatVector<typename T>()
-        // }
-        // return result;
-        return {};
+        std::list<V> result;
+        ArrayVectorPtr arrayVector = RocksDBState<K, N, ArrayVectorPtr>::get(key, ns);
+        const VectorPtr& elements = arrayVector->elements();
+        if (arrayVector && elements) {
+            auto size = arrayVector->size();
+            for (vector_size_t i = 0; i < size; ++i) {
+                if (!arrayVector->isNullAt(i)) {
+                    auto offset = arrayVector->offsetAt(i);
+                    auto length = arrayVector->sizeAt(i);
+                    for (vector_size_t j = 0; j < length; ++j) {
+                        vector_size_t index = offset + j;
+                        if (!elements->isNullAt(index)) {
+                            result.emplace_back(elements->asFlatVector<V>()->valueAt(index));
+                        }
+                    }
+                }
+            }
+        }
+        return result;
     }
   
     void add(K key, N ns, V value) override {
-        // std::list<V>& valueList = RocksDBState<K, N, V>::get(key, ns);
-        // valueList.emplace_back(value);
-        // RocksDBState<K, N, V>::put(key, ns, valueList);
+        ArrayVectorPtr stateVector = RocksDBState<K, N, ArrayVectorPtr>::get(key, ns);
+        if (stateVector) {
+            FlatVector<V>* flatVector = stateVector->elements()->asFlatVector<V>();
+            VELOX_CHECK(flatVector != nullptr, "FlatVector is null.");
+            flatVector->resize(flatVector->size() + 1);
+            flatVector->set(flatVector->size() - 1, value);
+            RocksDBState<K, N, ArrayVectorPtr>::put(stateVector);
+        } else {
+            const auto valueSerializer = std::dynamic_pointer_cast<ComplexVectorSerializer<ArrayVectorPtr>>(RocksDBState<K, N, ArrayVectorPtr>::valueSerializer_);
+            auto type = valueSerializer->getDataType();
+            VELOX_CHECK(type->kind() == TypeKind::ARRAY, "Type is not an array.");
+            stateVector = std::make_shared<ArrayVector>(this->pool_, type, nullptr, 1, BufferPtr(), BufferPtr(), 0);
+            stateVector->setNull(0, false);
+            stateVector->elements()->asFlatVector<V>()->set(0, value);
+            RocksDBState<K, N, ArrayVectorPtr>::put(key, ns, stateVector);
+        }
     }
   
     void remove(K key, N ns) override {
-        // return RocksDBState<K, N, V>::remove(key, ns);
+        RocksDBState<K, N, ArrayVectorPtr>::remove(key, ns);
     }
 
     void clear() override {}
@@ -202,31 +250,98 @@ public:
         rocksdb::ColumnFamilyHandle* columnFamily,
         std::shared_ptr<stateful::TypeSerializer<K>> keySerializer,
         std::shared_ptr<stateful::TypeSerializer<N>> namespaceSerializer,
-        std::shared_ptr<stateful::TypeSerializer<MapVectorPtr>> valueSerializer)
-    : RocksDBState<K, N, MapVectorPtr>(db, readOptions, writeOptions, columnFamily, keySerializer, namespaceSerializer, valueSerializer) {}
+        std::shared_ptr<stateful::TypeSerializer<MapVectorPtr>> valueSerializer,
+        const MapVectorPtr defaultValue,
+        memory::MemoryPool* pool)
+    : RocksDBState<K, N, MapVectorPtr>(db, readOptions, writeOptions, columnFamily, keySerializer, namespaceSerializer, valueSerializer, defaultValue, pool) {}
 
     UV get(K key, N ns, UK userKey) override {
-        // std::map<UK, UV> map = RocksDBState<K, N, std::map<UK, UV>>::get(key, ns);
-        // return map[userKey];
-        std::map<UK, UV> map;
-        return map[userKey];
+        MapVectorPtr mapVector = RocksDBState<K, N, MapVectorPtr>::get(key, ns);
+        VELOX_CHECK(mapVector != nullptr, "MapVector is null.");
+        FlatVector<UK>* keyVector = mapVector->mapKeys()->asFlatVector<UK>();
+        FlatVector<UV>* valueVector = mapVector->mapValues()->asFlatVector<UV>();
+        auto size = mapVector->size();
+        for (vector_size_t i = 0; i < size; ++i) {
+            if (!mapVector->isNullAt(i)) {
+                if (keyVector->valueAt(i) == userKey) {
+                    return valueVector->valueAt(i);
+                }
+            }
+        }
+        return UV();
+    }
+
+    MapVectorPtr vectorGet(K key, N ns) override {
+        return RocksDBState<K, N, MapVectorPtr>::get(key, ns);
+    }
+
+    void vectorPut(K key, N ns, const MapVectorPtr& vec) override {
+        RocksDBState<K, N, MapVectorPtr>::put(key, ns, vec);
     }
 
     void put(K key, N ns, UK userKey, UV value) override {
-        // std::map<UK, UV> map = RocksDBState<K, N, std::map<UK, UV>>::get(key, ns);
-        // map[userKey] = value;
-        // RocksDBState<K, N, std::map<UK, UV>>::put(key, ns, map);
+        MapVectorPtr mapVector = RocksDBState<K, N, MapVectorPtr>::get(key, ns);
+        if (!mapVector) {
+            const auto valueSerializer = std::dynamic_pointer_cast<ComplexVectorSerializer<MapVectorPtr>>(RocksDBState<K, N, MapVectorPtr>::valueSerializer_);
+            auto type = valueSerializer->getDataType();
+            VELOX_CHECK(type->kind() == TypeKind::MAP, "Type is not a map.");
+            mapVector = std::make_shared<MapVector>(this->pool_, type, nullptr, 1, BufferPtr(), BufferPtr(), 0);
+            mapVector->setNull(0, false);
+            mapVector->mapKeys()->asFlatVector<UK>()->set(0, userKey);
+            mapVector->mapValues()->asFlatVector<UV>()->set(0, value);
+            RocksDBState<K, N, MapVectorPtr>::put(mapVector);
+            return;
+        }
+        FlatVector<UK>* keyVector = mapVector->mapKeys()->asFlatVector<UK>();
+        FlatVector<UV>* valueVector = mapVector->mapValues()->asFlatVector<UV>();
+        auto size = mapVector->size();
+        for (vector_size_t i = 0; i < size; ++i) {
+            if (!mapVector->isNullAt(i)) {
+                if (keyVector->valueAt(i) == userKey) {
+                    valueVector->set(i, value);
+                    RocksDBState<K, N, MapVectorPtr>::put(mapVector);
+                    return;
+                }
+            }
+        }
+        mapVector->setNull(size, false);
+        keyVector->set(size, userKey);
+        valueVector->set(size, value);
+        RocksDBState<K, N, MapVectorPtr>::put(mapVector);
     }
 
     std::map<UK, UV> entries(K key, N ns) override {
-        // return RocksDBState<K, N, std::map<UK, UV>>::get(key, ns);
+        MapVectorPtr mapVector = RocksDBState<K, N, MapVectorPtr>::get(key, ns);
+        if (mapVector) {
+            FlatVector<UK>* keyVector = mapVector->mapKeys()->asFlatVector<UK>();
+            FlatVector<UV>* valueVector =  mapVector->mapValues()->asFlatVector<UV>();
+            std::map<UK, UV> result;
+            auto size = mapVector->size();
+            for (vector_size_t i = 0; i < size; ++i) {
+                if (!mapVector->isNullAt(i)) {
+                    result[keyVector->valueAt(i)] = valueVector->valueAt(i);
+                }
+            }
+            return result;
+        }
         return {{}};
     }
 
     void remove(K key, N ns, UK userKey) override {
-        // std::map<UK, UV> map = RocksDBState<K, N, std::map<UK, UV>>::get(key, ns);
-        // map.erase(userKey);
-        // RocksDBState<K, N, std::map<UK, UV>>::put(key, ns, map);
+        MapVectorPtr mapVector = RocksDBState<K, N, MapVectorPtr>::get(key, ns);
+        if (mapVector) {
+            FlatVector<UK>* keyVector = mapVector->mapKeys()->asFlatVector<UK>();
+            auto size = mapVector->size();
+            for (vector_size_t i = 0; i < size; ++i) {
+                if (!mapVector->isNullAt(i)) {
+                    if (keyVector->valueAt(i) == userKey) {
+                        mapVector->setNull(i, true);
+                        RocksDBState<K, N, MapVectorPtr>::put(mapVector);
+                        return;
+                    }
+                }
+            }
+        }
     }
 
     void clear() override {}
