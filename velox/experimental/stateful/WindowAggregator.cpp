@@ -210,6 +210,7 @@ void WindowAggregator::fireWindow(K key, long timerTimestamp, long windowEnd) {
     LOG(INFO) << "No output found for key: " << key << ", window end: " << windowEnd;
     return;
   } else {
+    LOG(INFO) << "output.size:" << output->size();
     if (windowStartIndex_ >= 0) {
       output = addWindowTimestampToOutput(
         output,
@@ -226,7 +227,10 @@ void WindowAggregator::fireWindow(K key, long timerTimestamp, long windowEnd) {
     }
   }
   if (output) {
+    LOG(INFO) << "output->data:" << output->toString(0);
     pushOutput(output);
+  } else {
+    LOG(INFO) << "output is empty";
   }
 }
 

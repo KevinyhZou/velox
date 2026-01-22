@@ -72,6 +72,34 @@ void RocksDBKeyedStateBackend::checkValidState(const std::string& stateName) {
     }
 }
 
+RowTypePtr combineToRowType(const TypePtr& keyType, const TypePtr& valueType) {
+    std::vector<std::string> names;
+    std::vector<TypePtr> types;
+    
+    if (keyType->kind() == TypeKind::ROW) {
+        auto keyRowType = std::dynamic_pointer_cast<const RowType>(keyType);
+        for (size_t i = 0; i < keyRowType->size(); ++i) {
+            names.push_back(keyRowType->nameOf(i));
+            types.push_back(keyRowType->childAt(i));
+        }
+    } else {
+        names.push_back("key");
+        types.push_back(keyType);
+    }
+    
+    if (valueType->kind() == TypeKind::ROW) {
+        auto valueRowType = std::dynamic_pointer_cast<const RowType>(valueType);
+        for (size_t i = 0; i < valueRowType->size(); ++i) {
+            names.push_back(valueRowType->nameOf(i));
+            types.push_back(valueRowType->childAt(i));
+        }
+    } else {
+        names.push_back("value");
+        types.push_back(valueType);
+    }
+    return std::make_shared<RowType>(std::move(names), std::move(types));
+}
+
 std::shared_ptr<ValueState<uint32_t, int64_t, RowVectorPtr>> RocksDBKeyedStateBackend::getOrCreateValueState(StateDescriptor& stateDescriptor) {
     const std::string stateName = stateDescriptor.name();
     checkValidState(stateName);
@@ -81,12 +109,13 @@ std::shared_ptr<ValueState<uint32_t, int64_t, RowVectorPtr>> RocksDBKeyedStateBa
     }
     memory::MemoryPool* pool = stateDescriptor.memoryPool();
     std::shared_ptr<ValueSerializer<uint32_t>> keySerializer = 
-        std::dynamic_pointer_cast<ValueSerializer<uint32_t>>(createSerializer(
-            stateKeys_[stateName]->isInteger() ? stateKeys_[stateName] : std::make_shared<ScalarType<TypeKind::INTEGER>>(), true, pool));
+        std::dynamic_pointer_cast<ValueSerializer<uint32_t>>(createSerializer( std::make_shared<ScalarType<TypeKind::INTEGER>>(), true, pool));
     std::shared_ptr<ValueSerializer<int64_t>> namespaceSerializer =
-        std::dynamic_pointer_cast<ValueSerializer<int64_t>>(createSerializer(stateNamespaces_[stateName], false,pool));
+        std::dynamic_pointer_cast<ValueSerializer<int64_t>>(createSerializer(stateNamespaces_[stateName], false, pool));
+    const TypePtr& keyType = stateKeys_[stateName];
+    const TypePtr& valueType = stateValues_[stateName];
     std::shared_ptr<ComplexVectorSerializer<RowVectorPtr>> valueSerializer =
-        std::dynamic_pointer_cast<ComplexVectorSerializer<RowVectorPtr>>(createSerializer(stateValues_[stateName], false, pool));
+        std::dynamic_pointer_cast<ComplexVectorSerializer<RowVectorPtr>>(createSerializer(combineToRowType(keyType, valueType), false, pool));
     return std::make_shared<RocksDBValueState<uint32_t, int64_t, RowVectorPtr>>(
         db_, readOptions_, writeOptions_, stateColumnFamilies_[stateName],keySerializer, namespaceSerializer, valueSerializer, nullptr);
 }

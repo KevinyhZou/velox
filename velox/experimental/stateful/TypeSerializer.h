@@ -22,7 +22,6 @@
 #include "velox/type/StringView.h"
 #include "velox/type/HugeInt.h"
 #include "velox/serializers/PrestoSerializer.h"
-#include "rocksdb/slice.h"
 #include <cstdint>
 #include <memory>
 #include <sstream>
@@ -53,7 +52,7 @@ public:
 
 protected:
     std::unique_ptr<ByteInputStream> toByteStream(const char* data, const size_t len) {
-        ByteRange byteRange{reinterpret_cast<uint8_t*>(const_cast<char*>(data)),(int32_t)len,0};
+        ByteRange byteRange{reinterpret_cast<uint8_t*>(const_cast<char*>(data)),static_cast<int64_t>(len),0};
         return std::make_unique<BufferInputStream>(std::vector<ByteRange>{{byteRange}});
     }
 };
@@ -127,6 +126,7 @@ public:
     }
 
     const std::string serialize(const D& t) override {
+        LOG(INFO) << "t->type:" << t->type()->toString() << " dataTye:" << dataType_->toString();
         std::ostringstream output;
         serde_->serializeSingleColumn(
             t, 
@@ -138,15 +138,22 @@ public:
 
     const D deserialize(const std::string& str) override {
         auto byteStream = TypeSerializer<D>::toByteStream(str.data(), str.size());
-        D result;
-        VectorPtr vec = std::dynamic_pointer_cast<BaseVector>(result);
+        VectorPtr vec;
         serde_->deserializeSingleColumn(
             byteStream.get(), 
             pool_, 
             dataType_, 
             &vec,
             nullptr);
-        return result; 
+        if constexpr (std::is_same_v<D, RowVectorPtr>) {
+            return std::dynamic_pointer_cast<RowVector>(vec);
+        } else if constexpr (std::is_same_v<D, ArrayVectorPtr>) {
+            return std::dynamic_pointer_cast<ArrayVector>(vec);
+        } else if constexpr (std::is_same_v<D, MapVectorPtr>) {
+            return std::dynamic_pointer_cast<MapVector>(vec);
+        } else {
+            VELOX_FAIL("Vector type not valid, this complex vector seralizer can only suupport rowvector/arrayvector/mapvector.");
+        }
     }
 
 private:

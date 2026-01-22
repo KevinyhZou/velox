@@ -72,14 +72,12 @@ public:
     V get(K key, N ns) {
         const std::string keyStr = serializeCurrentKeyWithGroupAndNamespace(key, ns);
         try {
-            LOG(INFO) << "key:" << key << " ns:" << ns << " keyslice:" << keyStr;
             std::string value;
             auto status = db_->Get(*readOptions_, columnFamily_, keyStr, &value);
             if (!status.ok()) {
-                LOG(INFO) << "return default value:" << status.ToString();
                 return defaultValue_;
             } else {
-                LOG(INFO) << "return value here";
+                LOG(INFO) << "return value here:" << value;
                 return valueSerializer_->deserialize(value);
             }
         } catch (const std::exception& e) {
@@ -89,8 +87,8 @@ public:
 
     const void put(K key, N ns, V value) {
         const std::string keyStr = serializeCurrentKeyWithGroupAndNamespace(key, ns);
-        LOG(INFO) << "putK:" << keyStr;
         const std::string valueStr = valueSerializer_->serialize(value);
+        LOG(INFO) << "put value:" << valueStr;
         try {
             auto status = db_->Put(*writeOptions_, columnFamily_, keyStr, valueStr);
             if (!status.ok()) {
