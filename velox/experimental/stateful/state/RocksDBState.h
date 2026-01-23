@@ -103,7 +103,6 @@ public:
 
     const void remove(K key, N ns) {
         const std::string keyStr = serializeCurrentKeyWithGroupAndNamespace(key, ns);
-        LOG(INFO) << "already remove:" << key << " ns:" << ns;
         try {
             auto status = db_->Delete(*writeOptions_, columnFamily_, keyStr);
             if (!status.ok()) {
