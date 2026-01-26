@@ -127,6 +127,9 @@ void StatefulOperator::initializeState() {
 }
 
 void StatefulOperator::snapshotState() {
+  if (!stateHandler_) {
+    return;
+  }
   stateHandler_->snapshotState();
   auto snapshotable = dynamic_cast<Snapshotable*>(op().get());
   if (snapshotable) {
@@ -139,6 +142,9 @@ void StatefulOperator::snapshotState() {
 }
 
 std::vector<std::string> StatefulOperator::notifyCheckpointComplete(long checkpointId) {
+  if (!stateHandler_) {
+    return {};
+  }
   stateHandler_->notifyCheckpointComplete(checkpointId);
   auto checkpointListener = dynamic_cast<CheckpointListener*>(op().get());
   if (checkpointListener) {
@@ -154,6 +160,9 @@ std::vector<std::string> StatefulOperator::notifyCheckpointComplete(long checkpo
 }
 
 void StatefulOperator::notifyCheckpointAborted(long checkpointId) {
+  if (!stateHandler_) {
+    return;
+  }
   stateHandler_->notifyCheckpointAborted(checkpointId);
   auto checkpointListener = dynamic_cast<CheckpointListener*>(op().get());
   if (checkpointListener) {
