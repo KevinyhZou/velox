@@ -22,4 +22,5 @@ velox_add_library(
 
 velox_link_libraries(
   velox_stateful_state
-  Folly::folly)
+  Folly::folly
+  rocksdb)
