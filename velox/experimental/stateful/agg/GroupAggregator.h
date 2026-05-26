@@ -19,6 +19,7 @@
 #include "velox/exec/Operator.h"
 #include "velox/experimental/stateful/agg/AggsHandleFunction.h"
 #include "velox/experimental/stateful/functions/KeyedProcessFunction.h"
+#include "velox/experimental/stateful/agg/RecordCounter.h"
 
 namespace facebook::velox::stateful {
 
@@ -31,7 +32,8 @@ class GroupAggregator : public exec::Operator, public KeyedProcessFunction {
       const std::shared_ptr<const core::PlanNode>& aggNode,
       std::unique_ptr<AggsHandleFunction> aggsFunction,
       int64_t stateRetentionTime,
-      bool generateUpdateBefore);
+      bool generateUpdateBefore,
+      int32_t indexOfCountStar = -1);
 
   bool needsInput() const override {
     VELOX_NYI();
@@ -55,7 +57,7 @@ class GroupAggregator : public exec::Operator, public KeyedProcessFunction {
 
   void open(StreamOperatorStateHandler* stateHandler) override;
 
-  RowVectorPtr processElements(uint32_t key, RowVectorPtr input) override;
+  RowVectorPtr processElements(int64_t key, RowVectorPtr input) override;
 
   void close() override;
 
@@ -64,6 +66,7 @@ class GroupAggregator : public exec::Operator, public KeyedProcessFunction {
   std::shared_ptr<ValueState<int64_t, int64_t, RowVectorPtr>> accState_;
   int64_t stateRetentionTime_;
   bool generateUpdateBefore_;
+  std::unique_ptr<RecordCounter> recordCounter_;
 };
 
 } // namespace facebook::velox::stateful

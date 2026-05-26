@@ -17,8 +17,47 @@
 #include <cstdint>
 
 #include "velox/core/PlanNode.h"
+#include "velox/vector/ComplexVector.h"
 
 namespace facebook::velox::stateful {
+
+inline bool isRetractMsg(const RowVectorPtr& rowVector) {
+  // TODO: Implement this.
+  return false;
+}
+
+inline bool isAccumulateMsg(const RowVectorPtr& rowVector) {
+  // TODO: Implement this.
+  return true;
+}
+
+/// Returns true if 'lhs' and 'rhs' are equal at the RowVector level. The
+/// comparison is null-safe (null == null), checks size and type compatibility
+/// first, and delegates per-row comparison to BaseVector::equalValueAt(),
+/// which recursively compares all child columns and works across encodings
+/// (Flat / Dictionary / Constant / nested ROW/ARRAY/MAP).
+inline bool equalRowVectors(
+    const RowVectorPtr& lhs,
+    const RowVectorPtr& rhs) {
+  if (lhs.get() == rhs.get()) {
+    return true;
+  }
+  if (lhs == nullptr || rhs == nullptr) {
+    return false;
+  }
+  if (lhs->size() != rhs->size()) {
+    return false;
+  }
+  if (!lhs->type()->equivalent(*rhs->type())) {
+    return false;
+  }
+  for (vector_size_t i = 0; i < lhs->size(); ++i) {
+    if (!lhs->equalValueAt(rhs.get(), i, i)) {
+      return false;
+    }
+  }
+  return true;
+}
 
 class StreamElement {
  public:

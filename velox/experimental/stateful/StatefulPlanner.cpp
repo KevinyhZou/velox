@@ -536,11 +536,14 @@ std::unique_ptr<exec::Operator> StatefulPlanner::transformOperator(
       auto aggsHandlerNode =
           std::dynamic_pointer_cast<const GroupAggsHandlerNode>(planNode)) {
     // FIXME: stateRetentionTime is not handled yet
+    // TODO: pick the concrete AggsHandleFunction subclass based on the
+    // aggregate functions declared in 'aggsHandlerNode'. For now we wire in
+    // the COUNT(*) reference implementation.
     return std::make_unique<GroupAggregator>(
         nextOperatorId(),
         ctx_,
         aggsHandlerNode,
-        std::make_unique<AggsHandleFunction>(), // TODO: not complete yet
+        std::make_unique<CountAggsHandleFunction>(ctx_->task->pool()),
         0,
         aggsHandlerNode->generateUpdateBefore());
   } else if (
