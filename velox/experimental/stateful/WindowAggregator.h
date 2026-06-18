@@ -36,16 +36,17 @@ class WindowAggregator : public StatefulOperator,
                          public Triggerable<int64_t, int64_t> {
  public:
   WindowAggregator(
-    std::unique_ptr<exec::Operator> localAggregator,
+    std::unique_ptr<exec::Operator> mergeOperator,
     std::unique_ptr<exec::Operator> globalAggregator,
     std::vector<std::unique_ptr<StatefulOperator>> targets,
     std::unique_ptr<KeySelector> keySelector,
     std::unique_ptr<SliceAssigner> sliceAssigner,
-    const long windowInterval,
+    const int64_t windowInterval,
+    const int64_t windowSize,
     const bool useDayLightSaving,
     const bool isEventTime,
-    const int windowStartIndex,
-    const int windowEndIndex);
+    const int32_t windowStartIndex,
+    const int32_t windowEndIndex);
 
   void initialize() override;
 
@@ -62,37 +63,40 @@ class WindowAggregator : public StatefulOperator,
   }
 
   void processWatermark(int64_t timestamp) override {
-    // processWatermarkInternal(timestamp);
+    processWatermarkInternal(timestamp);
   }
 
   void onEventTime(std::shared_ptr<TimerHeapInternalTimer<int64_t, int64_t>>
                        timer) override;
 
-  void onProcessingTime(std::shared_ptr<TimerHeapInternalTimer<int64_t, long>> timer) override;
+  void onProcessingTime(std::shared_ptr<TimerHeapInternalTimer<int64_t, int64_t>> timer) override;
+
+  void processProcessingTimeByJni(int64_t timestamp) override;
 
  private:
   void processWatermarkInternal(int64_t timestamp);
 
   int64_t sliceStateMergeTarget(int64_t sliceToMerge);
 
-  void onTimer(std::shared_ptr<TimerHeapInternalTimer<int64_t, long>> timer);
+  void onTimer(std::shared_ptr<TimerHeapInternalTimer<int64_t, int64_t>> timer);
 
-  template<typename K>
-  void fireWindow(K key, long timerTImestamp, long windowEnd);
+  template <typename K>
+  void fireWindow(const K& key, int64_t timerTimestamp, int64_t windowEnd);
 
-  template<typename K>
-  void clearWindow(K key, long timerTimestamp, long windowEnd);
+  template <typename K>
+  void clearWindow(const K& key, int64_t timerTimestamp, int64_t windowEnd);
 
   std::unique_ptr<exec::Operator> localAggregator_;
   std::unique_ptr<KeySelector> keySelector_;
   std::unique_ptr<SliceAssigner> sliceAssigner_;
   WindowBufferPtr windowBuffer_;
   const int64_t windowInterval_;
+  const int64_t windowSize_;
   const bool useDayLightSaving_;
   const int shiftTimeZone_ = 0; // TODO: support time zone shift
   const bool isEventTime_ = true;
-  const int windowStartIndex_ = -1;
-  const int windowEndIndex_ = -1;
+  const int32_t windowStartIndex_ = -1;
+  const int32_t windowEndIndex_ = -1;
 
   RowVectorPtr input_;
   int64_t currentProgress_ = 0;

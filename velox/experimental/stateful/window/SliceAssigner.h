@@ -15,7 +15,6 @@
  */
 #pragma once
 #include <cstdint>
-
 #include "velox/experimental/stateful/KeySelector.h"
 #include "velox/experimental/stateful/window/Window.h"
 
@@ -23,14 +22,15 @@ namespace facebook::velox::stateful {
 
 /// This class is relevant to Flink SliceAssigner.
 class SliceAssigner {
- public:
+public:
   SliceAssigner(
       std::unique_ptr<KeySelector>  keySelector,
       int64_t size,
       int64_t step,
       int64_t offset,
       WindowType windowType,
-      int rowtimeIndex);
+      int rowtimeIndex,
+      bool expandHopWindows = true);
 
   std::map<int64_t, RowVectorPtr> assignSliceEnd(const RowVectorPtr& input);
 
@@ -42,7 +42,7 @@ class SliceAssigner {
 
   int64_t getSliceEndInterval();
 
- private:
+private:
   const std::unique_ptr<KeySelector> keySelector_;
   const int64_t size_;
   const int64_t step_;
@@ -50,6 +50,7 @@ class SliceAssigner {
   const WindowType windowType_;
   int64_t sliceSize_;
   int rowtimeIndex_;
+  const bool expandHopWindows_;
 };
 
 } // namespace facebook::velox::stateful

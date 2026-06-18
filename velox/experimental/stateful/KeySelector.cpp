@@ -14,8 +14,30 @@
  * limitations under the License.
  */
 #include "velox/experimental/stateful/KeySelector.h"
+#include "velox/experimental/stateful/window/WindowPartitionFunction.h"
+#include <folly/container/F14Map.h>
+#include <algorithm>
+#include <memory>
+#include <optional>
 
 namespace facebook::velox::stateful {
+
+namespace {
+
+void allocateIndexBuffers(
+    const folly::F14FastMap<int64_t, vector_size_t>& partitionCounts,
+    folly::F14FastMap<int64_t, BufferPtr>& keyToIndexBuffers,
+    folly::F14FastMap<int64_t, vector_size_t*>& keyToRawIndices,
+    memory::MemoryPool* pool) {
+  keyToIndexBuffers.reserve(partitionCounts.size());
+  keyToRawIndices.reserve(partitionCounts.size());
+  for (const auto& [key, num] : partitionCounts) {
+    keyToIndexBuffers[key] = allocateIndices(num, pool);
+    keyToRawIndices[key] = keyToIndexBuffers[key]->asMutable<vector_size_t>();
+  }
+}
+
+} // namespace
 
 KeySelector::KeySelector(
     std::unique_ptr<core::PartitionFunction> partitionFunction,
@@ -23,52 +45,56 @@ KeySelector::KeySelector(
     int numPartitions)
     : partitionFunction_(std::move(partitionFunction)),
       pool_(pool),
-      numPartitions_(numPartitions) {}
+      numPartitions_(numPartitions) {
+  windowPartitionFunction_ =
+    dynamic_cast<WindowPartitionFunction*>(partitionFunction_.get());
+}
 
 std::map<int64_t, RowVectorPtr> KeySelector::partition(const RowVectorPtr& input) {
-  if (numPartitions_ == 1) {
-    return std::map<int64_t, RowVectorPtr>{{0, input}};
-  }
   prepareForInput(input);
-
-  // TODO: The partition function doesn't use max parallelism.
-  std::vector<uint32_t> partitions(input->size());
-  auto part = partitionFunction_->partition(*input, partitions);
-  if (part) {
-    // TODO: this is a optimization, as the RowVector may have be partitioned in
-    // local aggregation, so need not to partition again in global agg, but need
-    // to verify whether the judge condition is enough.
-    return std::map<int64_t, RowVectorPtr>{{*part, input}};
-  }
   const auto numInput = input->size();
-  std::map<uint32_t, vector_size_t> numOfKeys;
-  for (auto i = 0; i < numInput; ++i) {
-    if (numOfKeys.count(partitions[i]) == 0) {
-      numOfKeys[partitions[i]] = 1;
-    } else {
-      numOfKeys[partitions[i]] = numOfKeys[partitions[i]] + 1;
+  std::vector<int64_t> partitions(numInput);
+  std::optional<int64_t> res;
+  if (windowPartitionFunction_) {
+    res = windowPartitionFunction_->partition(*input, partitions);
+  } else {
+    std::vector<uint32_t> tmpPartitions(numInput);
+    std::optional<uint32_t> tmpRes = partitionFunction_->partition(*input, tmpPartitions);
+    if (tmpRes) {
+      res = static_cast<int64_t>(*tmpRes);
+    }
+    for (vector_size_t i = 0; i < numInput; ++i) {
+      partitions[i] =static_cast<int64_t>(tmpPartitions[i]);
     }
   }
+  if (res) {
+    return std::map<int64_t, RowVectorPtr>{{*res, input}};
+  }
 
-  std::map<uint32_t, BufferPtr> keyToIndexBuffers;
-  std::map<uint32_t, vector_size_t*> keyToRawIndices;
-  allocateIndexBuffers(numOfKeys, keyToIndexBuffers, keyToRawIndices);
+  folly::F14FastMap<int64_t, vector_size_t> partitionCounts;
+  partitionCounts.reserve(std::min<vector_size_t>(numInput, 4096));
 
-  numOfKeys.clear();
-  for (auto i = 0; i < numInput; ++i) {
-    auto partition = partitions[i];
-    int index = 0;
-    if (numOfKeys.count(partition)) {
-      index = numOfKeys[partition];
-    }
+  for (vector_size_t i = 0; i < numInput; ++i) {
+    ++partitionCounts[partitions[i]];
+  }
+  folly::F14FastMap<int64_t, BufferPtr> keyToIndexBuffers;
+  folly::F14FastMap<int64_t, vector_size_t*> keyToRawIndices;
+  allocateIndexBuffers(partitionCounts, keyToIndexBuffers, keyToRawIndices, pool_);
+
+  folly::F14FastMap<int64_t, vector_size_t> nextRowIndex;
+  nextRowIndex.reserve(partitionCounts.size());
+
+  for (vector_size_t i = 0; i < numInput; ++i) {
+    const auto partition = partitions[i];
+    const auto index = nextRowIndex[partition];
     keyToRawIndices[partition][index] = i;
-    numOfKeys[partition] = index + 1;
+    nextRowIndex[partition] = index + 1;
   }
 
   std::map<int64_t, RowVectorPtr> results;
-  for (auto & [key, partitionSize] : numOfKeys) {
-    auto partitionData = wrapChildren(input, partitionSize, keyToIndexBuffers[key]);
-    results[key] = partitionData;
+  for (const auto& [partitionKey, partitionSize] : partitionCounts) {
+    results.emplace(
+      partitionKey, wrapChildren(input, partitionSize, keyToIndexBuffers[partitionKey]));
   }
   return results;
 }
@@ -80,16 +106,6 @@ void KeySelector::prepareForInput(const RowVectorPtr& input) {
   // order.
   for (auto& child : input->children()) {
     child->loadedVector();
-  }
-}
-
-void KeySelector::allocateIndexBuffers(
-    const std::map<uint32_t, vector_size_t>& numOfKeys,
-    std::map<uint32_t, BufferPtr>& keyToIndexBuffers,
-    std::map<uint32_t, vector_size_t*>& keyToRawIndices) {
-  for (auto& [key, num] : numOfKeys) {
-    keyToIndexBuffers[key] = allocateIndices(num, pool_);
-    keyToRawIndices[key] = keyToIndexBuffers[key]->asMutable<vector_size_t>();
   }
 }
 
