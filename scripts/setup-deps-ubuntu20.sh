@@ -187,9 +187,12 @@ cmake --install build
 ldconfig
 
 # ---------------------------------------------------------------------------
-# 4. Clean up all build artifacts and downloaded sources.
+# 4. Clean up all build artifacts, downloaded sources, and unnecessary files
+#    to minimize Docker image size.
 # ---------------------------------------------------------------------------
 cd /
 rm -rf ${BUILD_DIR}
+rm -rf /opt/miniconda-for-velox /deps-download /tmp/deps-download /tmp/conda
+rm -rf /usr/share/doc /usr/share/man /usr/local/share/doc /usr/local/share/man
 rm -rf /var/lib/apt/lists/* /root/.cache/pip
 apt-get clean
