@@ -81,6 +81,9 @@ export CXX=/usr/bin/g++-11
 # ---------------------------------------------------------------------------
 PROMPT_ALWAYS_RESPOND=n INSTALL_PREREQUISITES=N bash ${SCRIPTDIR}/setup-ubuntu.sh
 
+# Remove apt double-conversion to avoid conflict with source-built version.
+apt-get remove -y libdouble-conversion-dev libdouble-conversion3 || true
+
 # ---------------------------------------------------------------------------
 # 3. Remaining deps that setup-ubuntu.sh does NOT install, or whose apt
 #    versions are too old / lack CMake config files.
@@ -100,17 +103,14 @@ cmake --build build -j ${NPROC}
 cmake --install build
 
 # --- double-conversion (3.1.5) ---
-# apt package exists but ensure cmake config is available.
-if ! cmake --find-package -DNAME=double-conversion -DCOMPILER_ID=GNU -DLANGUAGE=CXX -DMODE=EXIST 2>/dev/null; then
-  cd ${BUILD_DIR}
-  wget -q https://github.com/google/double-conversion/archive/refs/tags/v3.1.5.tar.gz -O dc.tar.gz
-  tar xzf dc.tar.gz
-  cd double-conversion-3.1.5
-  cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
-    -DBUILD_SHARED_LIBS=ON
-  cmake --build build -j ${NPROC}
-  cmake --install build
-fi
+# Build from source to ensure cmake config is available and avoid apt conflict.
+cd ${BUILD_DIR}
+wget -q https://github.com/google/double-conversion/archive/refs/tags/v3.1.5.tar.gz -O dc.tar.gz
+tar xzf dc.tar.gz
+cd double-conversion-3.1.5
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}   -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+cmake --build build -j ${NPROC}
+cmake --install build
 
 # --- xsimd 10.0.0 ---
 cd ${BUILD_DIR}
