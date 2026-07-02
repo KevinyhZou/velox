@@ -1,0 +1,84 @@
+# GitLab CI/CD for bigo-sg/velox.
+# Uses the velox-deps Docker image with all C++ dependencies pre-installed.
+#
+# Prerequisite: build and push the deps image:
+#   docker build -t listar1111/velox-deps:ubuntu20 -f scripts/Dockerfile.ubuntu20 .
+#   docker push listar1111/velox-deps:ubuntu20
+
+variables:
+  CCACHE_DIR: "/data/build/ccache"
+  CCACHE_MAXSIZE: "5G"
+  DEBIAN_FRONTEND: "noninteractive"
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+stages:
+  - build
+  - test
+
+.build-template:
+  tags:
+    - velox4j
+  image: listar1111/velox-deps:ubuntu20
+  interruptible: true
+  before_script:
+    - export CC=/usr/bin/gcc-11
+    - export CXX=/usr/bin/g++-11
+
+velox-build:
+  extends: .build-template
+  stage: build
+  script:
+    - >
+      cmake -G Ninja
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_PREFIX_PATH=/usr/local
+      -DVELOX_ENABLE_CCACHE=ON
+      -DVELOX_BUILD_SHARED=ON
+      -DVELOX_MONO_LIBRARY=ON
+      -DVELOX_BUILD_TESTING=ON
+      -DVELOX_ENABLE_KAFKA_CONNECTOR=ON
+      -DVELOX_ENABLE_PULSAR_CONNECTOR=ON
+      -DTREAT_WARNINGS_AS_ERRORS=0
+      -S . -B _build/release
+    - cmake --build _build/release --target velox -j $(nproc)
+  artifacts:
+    paths:
+      - _build/release/lib/libvelox.so
+    expire_in: 1 day
+
+velox-test-build:
+  extends: .build-template
+  stage: build
+  script:
+    - >
+      cmake -G Ninja
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_PREFIX_PATH=/usr/local
+      -DVELOX_ENABLE_CCACHE=ON
+      -DVELOX_BUILD_SHARED=ON
+      -DVELOX_MONO_LIBRARY=ON
+      -DVELOX_BUILD_TESTING=ON
+      -DVELOX_ENABLE_KAFKA_CONNECTOR=ON
+      -DVELOX_ENABLE_PULSAR_CONNECTOR=ON
+      -DTREAT_WARNINGS_AS_ERRORS=0
+      -S . -B _build/release
+    - cmake --build _build/release --target all -j $(nproc)
+  artifacts:
+    paths:
+      - _build/release/
+    exclude:
+      - _build/release/**/*.o
+      - _build/release/**/*.a
+    expire_in: 1 day
+
+velox-unit-tests:
+  extends: .build-template
+  stage: test
+  needs: ["velox-test-build"]
+  script:
+    - cd _build/release
+    - ctest --output-on-failure -j $(nproc) --timeout 300
