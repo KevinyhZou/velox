@@ -48,6 +48,7 @@
 #include "velox/experimental/stateful/StreamJoin.h"
 #include "velox/experimental/stateful/StreamKeyedOperator.h"
 #include "velox/experimental/stateful/StreamPartition.h"
+#include "velox/experimental/stateful/StreamRecordTimestampInserter.h"
 #include "velox/experimental/stateful/WatermarkAssigner.h"
 #include "velox/experimental/stateful/WatermarkGenerator.h"
 #include "velox/experimental/stateful/WatermarkSource.h"
@@ -84,6 +85,10 @@ StatefulOperatorPtr StatefulPlanner::transformStatefulOperators(
   if (std::dynamic_pointer_cast<const WatermarkAssignerNode>(
           statefulNode->node()) != nullptr) {
     result = transformWatermarkAssignerOperator(*statefulNode);
+  } else if (
+      std::dynamic_pointer_cast<const StreamRecordTimestampInserterNode>(
+          statefulNode->node()) != nullptr) {
+    result = transformStreamRecordTimestampInserterOperator(*statefulNode);
   } else if (
       std::dynamic_pointer_cast<const StreamPartitionNode>(
           statefulNode->node()) != nullptr) {
@@ -151,6 +156,23 @@ StatefulOperatorPtr StatefulPlanner::transformWatermarkAssignerOperator(
       watermarkAssignerNode->idleTimeout(),
       watermarkAssignerNode->rowtimeFieldIndex(),
       watermarkAssignerNode->watermarkInterval());
+}
+
+StatefulOperatorPtr StatefulPlanner::
+    transformStreamRecordTimestampInserterOperator(
+        const StatefulPlanNode& planNode) {
+  std::vector<StatefulOperatorPtr> targets =
+      transformStatefulOperators(planNode.targets());
+
+  auto inserterNode =
+      std::dynamic_pointer_cast<const StreamRecordTimestampInserterNode>(
+          planNode.node());
+
+  auto op = std::make_unique<exec::FilterProject>(
+      nextOperatorId(), ctx_, nullptr, inserterNode->project());
+
+  return std::make_unique<StreamRecordTimestampInserter>(
+      std::move(op), std::move(targets), inserterNode->rowtimeFieldIndex());
 }
 
 StatefulOperatorPtr StatefulPlanner::transformStreamPartitionOperator(

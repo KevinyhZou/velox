@@ -50,6 +50,8 @@ class StatefulPlanner {
       const core::PlanNodePtr& planNode);
   StatefulOperatorPtr transformWatermarkAssignerOperator(
       const StatefulPlanNode& planNode);
+  StatefulOperatorPtr transformStreamRecordTimestampInserterOperator(
+      const StatefulPlanNode& planNode);
   StatefulOperatorPtr transformStreamPartitionOperator(
       const StatefulPlanNode& planNode);
   StatefulOperatorPtr transformStreamJoinOperator(

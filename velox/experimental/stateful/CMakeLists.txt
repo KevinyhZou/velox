@@ -37,7 +37,8 @@ velox_add_library(
   GroupWindowAggregator.cpp
   WatermarkGenerator.cpp
   WatermarkSource.cpp
-  WatermarkAssigner.cpp)
+  WatermarkAssigner.cpp
+  StreamRecordTimestampInserter.cpp)
 
 velox_link_libraries(
   velox_stateful_exec

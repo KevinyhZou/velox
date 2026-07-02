@@ -68,6 +68,9 @@ void StatefulPlanNode::registerSerDe() {
 
   registry.Register("WatermarkAssignerNode", WatermarkAssignerNode::create);
   registry.Register(
+      "StreamRecordTimestampInserterNode",
+      StreamRecordTimestampInserterNode::create);
+  registry.Register(
       "WatermarkPushDownSpec", WatermarkPushDownSpec::deserialize);
   registry.Register(
       "TableScanWithWatermarkNode", TableScanNodeWithWatermark::create);
@@ -119,6 +122,36 @@ core::PlanNodePtr WatermarkAssignerNode::create(
 
   return std::make_shared<const WatermarkAssignerNode>(
       planNodeId, project, idleTimeout, rowtimeFieldIndex, watermarkInterval);
+}
+
+const std::vector<core::PlanNodePtr>&
+StreamRecordTimestampInserterNode::sources() const {
+  return kEmptySources;
+}
+
+void StreamRecordTimestampInserterNode::addDetails(
+    std::stringstream& stream) const {
+  stream << project_->toString();
+}
+
+folly::dynamic StreamRecordTimestampInserterNode::serialize() const {
+  auto obj = PlanNode::serialize();
+  obj["project"] = project_->serialize();
+  obj["rowtimeFieldIndex"] = rowtimeFieldIndex_;
+  return obj;
+}
+
+// static
+core::PlanNodePtr StreamRecordTimestampInserterNode::create(
+    const folly::dynamic& obj,
+    void* context) {
+  auto planNodeId = obj["id"].asString();
+  auto project =
+      ISerializable::deserialize<core::ProjectNode>(obj["project"], context);
+  int rowtimeFieldIndex = obj["rowtimeFieldIndex"].asInt();
+
+  return std::make_shared<const StreamRecordTimestampInserterNode>(
+      planNodeId, project, rowtimeFieldIndex);
 }
 
 void StreamJoinNode::addDetails(std::stringstream& stream) const {
