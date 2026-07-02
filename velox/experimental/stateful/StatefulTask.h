@@ -63,12 +63,12 @@ class StatefulTask : public exec::Task {
 
   StreamElementPtr next(ContinueFuture* future, int32_t& retCode);
 
-  void notifyWatermark(int64_t watermark, int index);
+  void notifyWatermark(int64_t watermark, int32_t index);
 
   void notifyWatermark(int64_t watermark);
 
   // idle == true means WatermarkStatus.IDLE; false means ACTIVE.
-  void notifyWatermarkStatus(bool idle, int index);
+  void notifyWatermarkStatus(bool idle, int32_t index);
 
   void notifyWatermarkStatus(bool idle);
 

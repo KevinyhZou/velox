@@ -185,7 +185,7 @@ std::shared_ptr<NativeCallbackBridge> StatefulTask::nativeCallbackBridge()
   return nativeCallbackBridge_;
 }
 
-void StatefulTask::notifyWatermark(int64_t watermark, int index) {
+void StatefulTask::notifyWatermark(int64_t watermark, int32_t index) {
   operatorChain_->processWatermark(watermark, index);
 }
 
@@ -193,7 +193,7 @@ void StatefulTask::notifyWatermark(int64_t watermark) {
   operatorChain_->processWatermark(watermark, 0);
 }
 
-void StatefulTask::notifyWatermarkStatus(bool idle, int index) {
+void StatefulTask::notifyWatermarkStatus(bool idle, int32_t index) {
   operatorChain_->processWatermarkStatus(idle, index);
 }
 

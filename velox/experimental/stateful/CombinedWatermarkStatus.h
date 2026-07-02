@@ -55,15 +55,15 @@ class CombinedWatermarkStatus {
     bool idle_ = false;
   };
 
-  CombinedWatermarkStatus(int numWatermarks) {
+  CombinedWatermarkStatus(int32_t numWatermarks) {
     VELOX_CHECK(numWatermarks > 0, "numWatermarks must be greater than 0");
     partialWatermarks_.resize(numWatermarks);
   }
 
-  bool updateWatermark(int index, int64_t timestamp);
+  bool updateWatermark(int32_t index, int64_t timestamp);
 
   // idle == true means WatermarkStatus.IDLE; false means ACTIVE.
-  bool updateStatus(int index, bool idle);
+  bool updateStatus(int32_t index, bool idle);
 
   int64_t getCombinedWatermark();
 

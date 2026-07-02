@@ -66,11 +66,11 @@ class StatefulOperator {
 
   virtual void finish();
 
-  virtual void processWatermark(int64_t timestamp, int index);
+  virtual void processWatermark(int64_t timestamp, int32_t index);
 
   virtual void processWatermark(int64_t timestamp);
 
-  virtual void processWatermarkStatus(bool idle, int index);
+  virtual void processWatermarkStatus(bool idle, int32_t index);
 
   virtual void processWatermarkStatus(bool idle);
 

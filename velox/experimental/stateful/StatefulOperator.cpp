@@ -174,7 +174,7 @@ void StatefulOperator::emitWatermarkStatus(bool idle) {
   }
 }
 
-void StatefulOperator::processWatermark(int64_t timestamp, int index) {
+void StatefulOperator::processWatermark(int64_t timestamp, int32_t index) {
   const bool wasIdle = combinedWatermarkStatus_->isIdle();
   const bool watermarkUpdated =
       combinedWatermarkStatus_->updateWatermark(index, timestamp);
@@ -195,7 +195,7 @@ void StatefulOperator::processWatermark(int64_t timestamp) {
   emitWatermark(timestamp);
 }
 
-void StatefulOperator::processWatermarkStatus(bool idle, int index) {
+void StatefulOperator::processWatermarkStatus(bool idle, int32_t index) {
   const bool wasIdle = combinedWatermarkStatus_->isIdle();
   if (combinedWatermarkStatus_->updateStatus(index, idle)) {
     emitWatermark(combinedWatermarkStatus_->getCombinedWatermark());
