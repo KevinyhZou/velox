@@ -42,6 +42,7 @@ velox-build:
       -DVELOX_BUILD_TESTING=ON
       -DVELOX_ENABLE_KAFKA_CONNECTOR=ON
       -DVELOX_ENABLE_PULSAR_CONNECTOR=ON
+      -DVELOX_CPR_USE_SYSTEM_CURL=ON
       -DTREAT_WARNINGS_AS_ERRORS=0
       -S . -B _build/release
     - cmake --build _build/release --target velox -j $(nproc)
@@ -64,6 +65,7 @@ velox-test-build:
       -DVELOX_BUILD_TESTING=ON
       -DVELOX_ENABLE_KAFKA_CONNECTOR=ON
       -DVELOX_ENABLE_PULSAR_CONNECTOR=ON
+      -DVELOX_CPR_USE_SYSTEM_CURL=ON
       -DTREAT_WARNINGS_AS_ERRORS=0
       -S . -B _build/release
     - cmake --build _build/release --target all -j $(nproc)
