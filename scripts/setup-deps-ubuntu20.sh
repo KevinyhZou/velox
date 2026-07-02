@@ -16,15 +16,13 @@
 # Installs ALL C++ dependencies for building Velox as SYSTEM libraries in
 # /usr/local so that Velox's AUTO dependency resolution finds them via
 # find_package() and skips the BUNDLED FetchContent builds entirely.
+# This avoids the RocksDB/gRPC "tools" target conflict and eliminates
+# redundant dep compilation on every CI run.
 #
-# Layer 1: Velox's official setup-ubuntu.sh handles apt packages, gcc-11,
-#   cmake, and all deps it knows about (fmt, folly, boost, protobuf, thrift,
-#   arrow, geos, stemmer, duckdb, librdkafka, cppkafka, fizz, wangle, mvfst,
-#   fbthrift, etc.).
-# Layer 2: Additional deps that setup-ubuntu.sh does NOT install, or whose
-#   apt versions are too old / lack CMake config files. Parameters are aligned
-#   with Velox's BUNDLED resolve_dependency_modules/*.cmake to avoid
-#   inconsistencies.
+# Layer 1: Basic apt packages (gcc-11, cmake, etc.)
+# Layer 2: Velox's official setup-ubuntu.sh (fmt, folly, boost, protobuf, etc.)
+# Layer 3: Deps not covered by setup-ubuntu.sh, built with parameters
+#          aligned with Velox's BUNDLED resolve_dependency_modules/*.cmake.
 #
 # Usage: bash scripts/setup-deps-ubuntu20.sh
 # When a dependency is upgraded in Velox, rebuild the Docker image.
@@ -42,12 +40,29 @@ SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
 VELOX_CMAKE_DIR=${SCRIPTDIR}/../CMake/resolve_dependency_modules
 
 # ---------------------------------------------------------------------------
-# 1. APT packages NOT covered by Velox's setup-ubuntu.sh
+# 1. Basic apt packages (also needed by Velox's setup-ubuntu.sh)
 # ---------------------------------------------------------------------------
 apt-get update
 
+apt-get install -y sudo locales wget tar tzdata git
+apt-get install -y curl zip unzip pkg-config gnupg lsb-release software-properties-common
+apt-get install -y python3 python3-pip
+apt-get install -y chrpath patchelf
+
 # Java + Maven (needed by velox4j, not by Velox itself).
 apt-get install -y openjdk-11-jdk maven
+
+# GCC 11 (required by Velox on Ubuntu 20.04).
+wget -qO- "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x1E9377A2BA9EF27F&options=mr" | apt-key add -
+echo "deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu focal main" > /etc/apt/sources.list.d/ubuntu-toolchain-r-ppa.list
+apt-get update
+apt-get install -y gcc-11 g++-11
+rm -f /usr/bin/gcc /usr/bin/g++
+ln -s /usr/bin/gcc-11 /usr/bin/gcc
+ln -s /usr/bin/g++-11 /usr/bin/g++
+
+# CMake >= 3.28 via pip.
+pip3 install cmake==3.28.3 cmake-format
 
 # LLVM 14 (for clang-format, used by Velox's format checks).
 wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
@@ -55,35 +70,34 @@ add-apt-repository "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main"
 apt-get update
 apt-get install -y llvm-14-dev clang-14
 
-# Tools needed for packaging / linking.
-apt-get install -y chrpath patchelf
+export CC=/usr/bin/gcc-11
+export CXX=/usr/bin/g++-11
 
 # ---------------------------------------------------------------------------
 # 2. Velox's official setup script
-#    Installs ALL build prerequisites (gcc-11, cmake, ccache, ninja, apt deps)
-#    and all deps it knows about into /usr/local.
-#    We set INSTALL_PREREQUISITES=Y so it installs gcc-11, cmake, etc. itself.
+#    Installs apt deps (c-ares, double-conversion, glog, gflags, re2, lz4,
+#    zstd, snappy, icu, openssl, curl, etc.) and builds from source into
+#    /usr/local: fmt, folly, boost, protobuf, thrift, arrow, geos, stemmer,
+#    duckdb, librdkafka, cppkafka, fizz, wangle, mvfst, fbthrift.
+#    We skip INSTALL_PREREQUISITES since we already installed gcc-11/cmake above.
 # ---------------------------------------------------------------------------
-export CC=/usr/bin/gcc-11
-export CXX=/usr/bin/g++-11
-PROMPT_ALWAYS_RESPOND=n INSTALL_PREREQUISITES=Y bash ${SCRIPTDIR}/setup-ubuntu.sh
+PROMPT_ALWAYS_RESPOND=n INSTALL_PREREQUISITES=N bash ${SCRIPTDIR}/setup-ubuntu.sh
 
-# Remove apt double-conversion to avoid conflict with source-built version.
+# Remove apt double-conversion and c-ares to avoid conflicts with our
+# source-built versions that have proper CMake config files.
 apt-get remove -y libdouble-conversion-dev libdouble-conversion3 || true
 
 # ---------------------------------------------------------------------------
-# 3. Remaining deps that setup-ubuntu.sh does NOT install, or whose apt
-#    versions are too old / lack CMake config files.
-#    Build parameters are aligned with Velox's BUNDLED cmake modules.
+# 3. Deps not covered by setup-ubuntu.sh, or whose apt versions are too old
+#    / lack CMake config files.
+#    Build parameters aligned with Velox's BUNDLED cmake modules.
 #    Install order matters: c-ares -> double-conversion -> xsimd -> simdjson
 #    -> absl -> re2 -> gRPC -> RocksDB.
 # ---------------------------------------------------------------------------
 mkdir -p ${BUILD_DIR}
 
-# --- c-ares (cares-1_13_0, Velox's pinned version) ---
+# --- c-ares (Velox pin: cares-1_13_0; we use 1.18.1 for correct cmake version) ---
 # Velox BUNDLED: CARES_STATIC=ON, CARES_SHARED=OFF, c-ares-random-file.patch
-# We use 1.18.1 (1.13.0 has broken cmake version reporting) but apply the
-# same patch and build parameters.
 cd ${BUILD_DIR}
 wget -q https://github.com/c-ares/c-ares/archive/refs/tags/cares-1_18_1.tar.gz -O cares.tar.gz
 tar xzf cares.tar.gz
@@ -96,7 +110,6 @@ cmake --install build
 
 # --- double-conversion (3.1.5) ---
 # Velox: find_package(double-conversion 3.1.5 REQUIRED)
-# Build from source to ensure cmake config is available and avoid apt conflict.
 cd ${BUILD_DIR}
 wget -q https://github.com/google/double-conversion/archive/refs/tags/v3.1.5.tar.gz -O dc.tar.gz
 tar xzf dc.tar.gz
@@ -145,6 +158,7 @@ cmake --install build
 
 # --- re2 2024-07-02 ---
 # Velox BUNDLED: RE2_USE_ICU=ON, RE2_BUILD_TESTING=OFF, static (no BUILD_SHARED_LIBS)
+# Ubuntu 20.04's libre2-dev (20200101) is too old and lacks re2Config.cmake.
 cd ${BUILD_DIR}
 wget -q https://github.com/google/re2/archive/refs/tags/2024-07-02.tar.gz -O re2.tar.gz
 tar xzf re2.tar.gz
