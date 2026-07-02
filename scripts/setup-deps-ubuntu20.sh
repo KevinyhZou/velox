@@ -88,14 +88,14 @@ PROMPT_ALWAYS_RESPOND=n INSTALL_PREREQUISITES=N bash ${SCRIPTDIR}/setup-ubuntu.s
 # ---------------------------------------------------------------------------
 mkdir -p ${BUILD_DIR}
 
-# --- c-ares (cares-1_13_0, Velox's pinned version) ---
+# --- c-ares 1.18.1 ---
 # Ubuntu 20.04's libc-ares-dev (1.15.0) lacks c-ares-config.cmake.
 cd ${BUILD_DIR}
-wget -q https://github.com/c-ares/c-ares/archive/refs/tags/cares-1_13_0.tar.gz -O cares.tar.gz
+wget -q https://github.com/c-ares/c-ares/archive/refs/tags/cares-1_18_1.tar.gz -O cares.tar.gz
 tar xzf cares.tar.gz
-cd c-ares-cares-1_13_0
+cd c-ares-cares-1_18_1
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
-  -DCARES_STATIC=ON -DCARES_SHARED=OFF -DCARES_INSTALL=ON
+  -DCARES_STATIC=ON -DCARES_SHARED=ON -DCARES_INSTALL=ON
 cmake --build build -j ${NPROC}
 cmake --install build
 
