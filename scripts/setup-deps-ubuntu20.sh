@@ -103,7 +103,7 @@ cd ${BUILD_DIR}
 wget -q https://github.com/c-ares/c-ares/archive/refs/tags/cares-1_18_1.tar.gz -O cares.tar.gz
 tar xzf cares.tar.gz
 cd c-ares-cares-1_18_1
-patch -p1 < ${VELOX_CMAKE_DIR}/c-ares/c-ares-random-file.patch
+# c-ares-random-file.patch is for 1.13.0, not needed for 1.18.1
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
   -DCARES_STATIC=ON -DCARES_SHARED=OFF -DCARES_INSTALL=ON
 cmake --build build -j ${NPROC}
