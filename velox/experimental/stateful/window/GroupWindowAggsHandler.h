@@ -30,7 +30,7 @@ class GroupWindowAggsHandler : public exec::Operator {
       const std::shared_ptr<const core::PlanNode>& groupAggNode);
 
   bool needsInput() const override {
-    VELOX_NYI();
+    return false;
   }
 
   void addInput(RowVectorPtr input) override;
@@ -38,7 +38,7 @@ class GroupWindowAggsHandler : public exec::Operator {
   RowVectorPtr getOutput() override;
 
   exec::BlockingReason isBlocked(ContinueFuture* /*future*/) override {
-    VELOX_NYI();
+    return exec::BlockingReason::kNotBlocked;
   }
 
   bool isFinished() override;
