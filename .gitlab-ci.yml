@@ -21,7 +21,7 @@ stages:
 
 .build-template:
   tags:
-    - velox4j
+    - velox
   image: listar1111/velox-deps:ubuntu20
   interruptible: true
   before_script:
