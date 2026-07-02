@@ -18,7 +18,9 @@
 
 namespace facebook::velox::stateful {
 
-bool CombinedWatermarkStatus::updateWatermark(int32_t index, int64_t timestamp) {
+bool CombinedWatermarkStatus::updateWatermark(
+    int32_t index,
+    int64_t timestamp) {
   VELOX_CHECK(index < partialWatermarks_.size(), "Index out of range");
   auto& watermark = partialWatermarks_[index];
 
