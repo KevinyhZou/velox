@@ -68,7 +68,8 @@ pip3 install cmake==3.28.3 cmake-format
 wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
 add-apt-repository "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main"
 apt-get update
-apt-get install -y llvm-14-dev clang-14
+apt-get install -y clang-format-14
+ln -sf /usr/bin/clang-format-14 /usr/bin/clang-format
 
 export CC=/usr/bin/gcc-11
 export CXX=/usr/bin/g++-11
