@@ -84,15 +84,12 @@ export CXX=/usr/bin/g++-11
 # ---------------------------------------------------------------------------
 PROMPT_ALWAYS_RESPOND=n INSTALL_PREREQUISITES=N bash ${SCRIPTDIR}/setup-ubuntu.sh
 
-# Remove apt double-conversion and c-ares to avoid conflicts with our
-# source-built versions that have proper CMake config files.
-apt-get remove -y libdouble-conversion-dev libdouble-conversion3 || true
 
 # ---------------------------------------------------------------------------
 # 3. Deps not covered by setup-ubuntu.sh, or whose apt versions are too old
 #    / lack CMake config files.
 #    Build parameters aligned with Velox's BUNDLED cmake modules.
-#    Install order matters: c-ares -> double-conversion -> xsimd -> simdjson
+#    Install order matters: c-ares -> xsimd -> simdjson
 #    -> absl -> re2 -> gRPC -> RocksDB.
 # ---------------------------------------------------------------------------
 mkdir -p ${BUILD_DIR}
@@ -106,17 +103,6 @@ cd c-ares-cares-1_18_1
 # c-ares-random-file.patch is for 1.13.0, not needed for 1.18.1
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
   -DCARES_STATIC=ON -DCARES_SHARED=OFF -DCARES_INSTALL=ON
-cmake --build build -j ${NPROC}
-cmake --install build
-
-# --- double-conversion (3.1.5) ---
-# Velox: find_package(double-conversion 3.1.5 REQUIRED)
-cd ${BUILD_DIR}
-wget -q https://github.com/google/double-conversion/archive/refs/tags/v3.1.5.tar.gz -O dc.tar.gz
-tar xzf dc.tar.gz
-cd double-conversion-3.1.5
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
-  -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 cmake --build build -j ${NPROC}
 cmake --install build
 
