@@ -33,6 +33,7 @@ void GroupWindowAggsHandler::addInput(RowVectorPtr input) {
 
 RowVectorPtr GroupWindowAggsHandler::getOutput() {
   // No-op: input is managed via StatefulOperator API (accumulate/setAccumulators).
+  return nullptr;
 }
 
 bool GroupWindowAggsHandler::isFinished() {
