@@ -44,7 +44,7 @@ VELOX_CMAKE_DIR=${SCRIPTDIR}/../CMake/resolve_dependency_modules
 # ---------------------------------------------------------------------------
 apt-get update
 
-apt-get install -y sudo locales wget tar tzdata git
+apt-get install -y sudo locales wget tar tzdata git build-essential ninja-build ccache
 apt-get install -y curl zip unzip pkg-config gnupg lsb-release software-properties-common
 apt-get install -y python3 python3-pip
 apt-get install -y chrpath patchelf
