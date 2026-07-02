@@ -137,7 +137,7 @@ wget -q https://github.com/abseil/abseil-cpp/archive/refs/tags/20240116.2.tar.gz
 tar xzf absl.tar.gz
 cd abseil-cpp-20240116.2
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
-  -DABSL_BUILD_TESTING=OFF -DABSL_PROPAGATE_CXX_STD=ON -DABSL_ENABLE_INSTALL=ON
+  -DABSL_BUILD_TESTING=OFF -DABSL_PROPAGATE_CXX_STD=ON -DABSL_ENABLE_INSTALL=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 cmake --build build -j ${NPROC}
 cmake --install build
 
@@ -148,7 +148,7 @@ wget -q https://github.com/google/re2/archive/refs/tags/2024-07-02.tar.gz -O re2
 tar xzf re2.tar.gz
 cd re2-2024-07-02
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
-  -DRE2_BUILD_TESTING=OFF -DRE2_USE_ICU=ON -DBUILD_SHARED_LIBS=ON \
+  -DRE2_BUILD_TESTING=OFF -DRE2_USE_ICU=ON -DBUILD_SHARED_LIBS=OFF \
   -DCMAKE_PREFIX_PATH=${INSTALL_PREFIX}
 cmake --build build -j ${NPROC}
 cmake --install build
