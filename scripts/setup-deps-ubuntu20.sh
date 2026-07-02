@@ -1,0 +1,208 @@
+#!/bin/bash
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Installs ALL C++ dependencies for building Velox as SYSTEM libraries in
+# /usr/local so that Velox's AUTO dependency resolution finds them via
+# find_package() and skips the BUNDLED FetchContent builds entirely.
+# This avoids the RocksDB/gRPC "tools" target conflict and eliminates
+# redundant dep compilation on every CI run.
+#
+# Layer 1: Basic apt packages (gcc-11, cmake, etc.)
+# Layer 2: Velox's official setup-ubuntu.sh (fmt, folly, boost, protobuf, etc.)
+# Layer 3: Deps not covered by setup-ubuntu.sh, built with parameters
+#          aligned with Velox's BUNDLED resolve_dependency_modules/*.cmake.
+#
+# Usage: bash scripts/setup-deps-ubuntu20.sh
+# When a dependency is upgraded in Velox, rebuild the Docker image.
+
+export DEBIAN_FRONTEND=noninteractive
+
+set -e
+set -o pipefail
+set -u
+
+INSTALL_PREFIX=${INSTALL_PREFIX:-/usr/local}
+NPROC=$(getconf _NPROCESSORS_ONLN)
+BUILD_DIR=/tmp/velox-deps
+SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
+VELOX_CMAKE_DIR=${SCRIPTDIR}/../CMake/resolve_dependency_modules
+
+# ---------------------------------------------------------------------------
+# 1. Basic apt packages (also needed by Velox's setup-ubuntu.sh)
+# ---------------------------------------------------------------------------
+apt-get update
+
+apt-get install -y sudo locales wget tar tzdata git build-essential ninja-build ccache
+apt-get install -y curl zip unzip pkg-config gnupg lsb-release software-properties-common
+apt-get install -y python3 python3-pip
+apt-get install -y chrpath patchelf
+
+# Java + Maven (needed by velox4j, not by Velox itself).
+apt-get install -y openjdk-11-jdk maven
+
+# GCC 11 (required by Velox on Ubuntu 20.04).
+wget -qO- "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x1E9377A2BA9EF27F&options=mr" | apt-key add -
+echo "deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu focal main" > /etc/apt/sources.list.d/ubuntu-toolchain-r-ppa.list
+apt-get update
+apt-get install -y gcc-11 g++-11
+rm -f /usr/bin/gcc /usr/bin/g++
+ln -s /usr/bin/gcc-11 /usr/bin/gcc
+ln -s /usr/bin/g++-11 /usr/bin/g++
+
+# CMake >= 3.28 via pip.
+pip3 install cmake==3.28.3 cmake-format
+
+# LLVM 14 (for clang-format, used by Velox's format checks).
+wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+add-apt-repository "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main"
+apt-get update
+apt-get install -y clang-format-14
+ln -sf /usr/bin/clang-format-14 /usr/bin/clang-format
+
+export CC=/usr/bin/gcc-11
+export CXX=/usr/bin/g++-11
+
+# ---------------------------------------------------------------------------
+# 2. Velox's official setup script
+#    Installs apt deps (c-ares, double-conversion, glog, gflags, re2, lz4,
+#    zstd, snappy, icu, openssl, curl, etc.) and builds from source into
+#    /usr/local: fmt, folly, boost, protobuf, thrift, arrow, geos, stemmer,
+#    duckdb, librdkafka, cppkafka, fizz, wangle, mvfst, fbthrift.
+#    We skip INSTALL_PREREQUISITES since we already installed gcc-11/cmake above.
+# ---------------------------------------------------------------------------
+PROMPT_ALWAYS_RESPOND=n INSTALL_PREREQUISITES=N bash ${SCRIPTDIR}/setup-ubuntu.sh
+
+
+# ---------------------------------------------------------------------------
+# 3. Deps not covered by setup-ubuntu.sh, or whose apt versions are too old
+#    / lack CMake config files.
+#    Build parameters aligned with Velox's BUNDLED cmake modules.
+#    Install order matters: c-ares -> xsimd -> simdjson
+#    -> absl -> re2 -> gRPC -> RocksDB.
+# ---------------------------------------------------------------------------
+mkdir -p ${BUILD_DIR}
+
+# --- c-ares (Velox pin: cares-1_13_0; we use 1.18.1 for correct cmake version) ---
+# Velox BUNDLED: CARES_STATIC=ON, CARES_SHARED=OFF, c-ares-random-file.patch
+cd ${BUILD_DIR}
+wget -q https://github.com/c-ares/c-ares/archive/refs/tags/cares-1_18_1.tar.gz -O cares.tar.gz
+tar xzf cares.tar.gz
+cd c-ares-cares-1_18_1
+# c-ares-random-file.patch is for 1.13.0, not needed for 1.18.1
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+  -DCARES_STATIC=ON -DCARES_SHARED=OFF -DCARES_INSTALL=ON
+cmake --build build -j ${NPROC}
+cmake --install build
+
+# --- xsimd 10.0.0 ---
+# Velox BUNDLED: no special options.
+cd ${BUILD_DIR}
+wget -q https://github.com/xtensor-stack/xsimd/archive/refs/tags/10.0.0.tar.gz -O xsimd.tar.gz
+tar xzf xsimd.tar.gz
+cd xsimd-10.0.0
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}
+cmake --build build -j ${NPROC}
+cmake --install build
+
+# --- simdjson 3.9.3 ---
+# Velox BUNDLED: SIMDJSON_BUILD_STATIC, SIMDJSON_BUILD_TESTS=OFF,
+#   target_compile_definitions(simdjson PUBLIC SIMDJSON_EXPERIMENTAL_ALLOW_INCOMPLETE_JSON)
+# The compile definition is handled in Velox's CMakeLists.txt via
+# add_compile_definitions() so it works for both BUNDLED and SYSTEM.
+cd ${BUILD_DIR}
+wget -q https://github.com/simdjson/simdjson/archive/refs/tags/v3.9.3.tar.gz -O simdjson.tar.gz
+tar xzf simdjson.tar.gz
+cd simdjson-3.9.3
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+  -DSIMDJSON_BUILD_STATIC=ON -DSIMDJSON_BUILD_TESTS=OFF
+cmake --build build -j ${NPROC}
+cmake --install build
+
+# --- absl 20240116.2 ---
+# Velox BUNDLED: ABSL_BUILD_TESTING=OFF, ABSL_PROPAGATE_CXX_STD=ON,
+#   ABSL_ENABLE_INSTALL=ON, absl-macos.patch (macOS only, skip on Linux)
+cd ${BUILD_DIR}
+wget -q https://github.com/abseil/abseil-cpp/archive/refs/tags/20240116.2.tar.gz -O absl.tar.gz
+tar xzf absl.tar.gz
+cd abseil-cpp-20240116.2
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+  -DABSL_BUILD_TESTING=OFF -DABSL_PROPAGATE_CXX_STD=ON -DABSL_ENABLE_INSTALL=ON \
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+cmake --build build -j ${NPROC}
+cmake --install build
+
+# --- re2 2024-07-02 ---
+# Velox BUNDLED: RE2_USE_ICU=ON, RE2_BUILD_TESTING=OFF, static (no BUILD_SHARED_LIBS)
+# Ubuntu 20.04's libre2-dev (20200101) is too old and lacks re2Config.cmake.
+cd ${BUILD_DIR}
+wget -q https://github.com/google/re2/archive/refs/tags/2024-07-02.tar.gz -O re2.tar.gz
+tar xzf re2.tar.gz
+cd re2-2024-07-02
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+  -DRE2_BUILD_TESTING=OFF -DRE2_USE_ICU=ON -DBUILD_SHARED_LIBS=OFF \
+  -DCMAKE_PREFIX_PATH=${INSTALL_PREFIX}
+cmake --build build -j ${NPROC}
+cmake --install build
+
+# --- gRPC 1.48.1 ---
+# Velox BUNDLED: grpc-tools-target.patch, all *_PROVIDER=package, gRPC_INSTALL=ON
+cd ${BUILD_DIR}
+wget -q https://github.com/grpc/grpc/archive/refs/tags/v1.48.1.tar.gz -O grpc.tar.gz
+tar xzf grpc.tar.gz
+cd grpc-1.48.1
+# Apply Velox's grpc-tools-target.patch (rename "tools" target -> "grpc_tools").
+patch -p1 < ${VELOX_CMAKE_DIR}/grpc/grpc-tools-target.patch
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+  -DgRPC_ABSL_PROVIDER=package \
+  -DgRPC_ZLIB_PROVIDER=package \
+  -DgRPC_CARES_PROVIDER=package \
+  -DgRPC_RE2_PROVIDER=package \
+  -DgRPC_SSL_PROVIDER=package \
+  -DgRPC_PROTOBUF_PROVIDER=package \
+  -DgRPC_BUILD_TESTS=OFF \
+  -DgRPC_INSTALL=ON
+cmake --build build -j ${NPROC}
+cmake --install build
+
+# --- RocksDB (FRocksDB-6.20.3) ---
+# Velox BUNDLED: ROCKSDB_BUILD_SHARED=ON
+cd ${BUILD_DIR}
+wget -q https://github.com/ververica/frocksdb/archive/refs/heads/FRocksDB-6.20.3.zip -O frocksdb.zip
+unzip -q frocksdb.zip
+cd frocksdb-FRocksDB-6.20.3
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+  -DROCKSDB_BUILD_SHARED=ON \
+  -DWITH_TESTS=OFF \
+  -DWITH_BENCHMARK_TOOLS=OFF \
+  -DWITH_TOOLS=OFF \
+  -DWITH_GFLAGS=OFF
+cmake --build build -j ${NPROC}
+cmake --install build
+
+ldconfig
+
+# ---------------------------------------------------------------------------
+# 4. Clean up all build artifacts, downloaded sources, and unnecessary files
+#    to minimize Docker image size.
+# ---------------------------------------------------------------------------
+cd /
+rm -rf ${BUILD_DIR}
+rm -rf /opt/miniconda-for-velox /deps-download /tmp/deps-download /tmp/conda
+rm -rf /usr/share/doc /usr/share/man /usr/local/share/doc /usr/local/share/man
+rm -rf /var/lib/apt/lists/* /root/.cache/pip
+apt-get clean

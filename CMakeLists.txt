@@ -539,6 +539,7 @@ endif()
 
 velox_set_source(simdjson)
 velox_resolve_dependency(simdjson 3.9.3)
+add_compile_definitions(SIMDJSON_EXPERIMENTAL_ALLOW_INCOMPLETE_JSON)
 
 velox_set_source(folly)
 velox_resolve_dependency(folly)
