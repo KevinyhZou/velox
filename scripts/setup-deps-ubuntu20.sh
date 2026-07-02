@@ -102,6 +102,7 @@ tar xzf cares.tar.gz
 cd c-ares-cares-1_18_1
 # c-ares-random-file.patch is for 1.13.0, not needed for 1.18.1
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
   -DCARES_STATIC=ON -DCARES_SHARED=OFF -DCARES_INSTALL=ON
 cmake --build build -j ${NPROC}
 cmake --install build
@@ -126,6 +127,7 @@ wget -q https://github.com/simdjson/simdjson/archive/refs/tags/v3.9.3.tar.gz -O 
 tar xzf simdjson.tar.gz
 cd simdjson-3.9.3
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
   -DSIMDJSON_BUILD_STATIC=ON -DSIMDJSON_BUILD_TESTS=OFF
 cmake --build build -j ${NPROC}
 cmake --install build
@@ -151,6 +153,7 @@ wget -q https://github.com/google/re2/archive/refs/tags/2024-07-02.tar.gz -O re2
 tar xzf re2.tar.gz
 cd re2-2024-07-02
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
   -DRE2_BUILD_TESTING=OFF -DRE2_USE_ICU=ON -DBUILD_SHARED_LIBS=OFF \
   -DCMAKE_PREFIX_PATH=${INSTALL_PREFIX}
 cmake --build build -j ${NPROC}
