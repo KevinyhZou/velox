@@ -17,13 +17,14 @@
 # /usr/local so that Velox's AUTO dependency resolution finds them via
 # find_package() and skips the BUNDLED FetchContent builds entirely.
 #
-# This includes:
-#   - Everything from Velox's official setup-ubuntu.sh (fmt, folly, boost,
-#     protobuf, thrift, arrow, geos, stemmer, duckdb, librdkafka, cppkafka,
-#     fizz, wangle, mvfst, fbthrift, etc.)
-#   - Additional deps that setup-ubuntu.sh does NOT install, or whose apt
-#     versions are too old / lack CMake config files:
-#       c-ares, double-conversion, xsimd, simdjson, absl, re2, gRPC, RocksDB
+# Layer 1: Velox's official setup-ubuntu.sh handles apt packages, gcc-11,
+#   cmake, and all deps it knows about (fmt, folly, boost, protobuf, thrift,
+#   arrow, geos, stemmer, duckdb, librdkafka, cppkafka, fizz, wangle, mvfst,
+#   fbthrift, etc.).
+# Layer 2: Additional deps that setup-ubuntu.sh does NOT install, or whose
+#   apt versions are too old / lack CMake config files. Parameters are aligned
+#   with Velox's BUNDLED resolve_dependency_modules/*.cmake to avoid
+#   inconsistencies.
 #
 # Usage: bash scripts/setup-deps-ubuntu20.sh
 # When a dependency is upgraded in Velox, rebuild the Docker image.
@@ -38,23 +39,15 @@ INSTALL_PREFIX=${INSTALL_PREFIX:-/usr/local}
 NPROC=$(getconf _NPROCESSORS_ONLN)
 BUILD_DIR=/tmp/velox-deps
 SCRIPTDIR=$(dirname "${BASH_SOURCE[0]}")
+VELOX_CMAKE_DIR=${SCRIPTDIR}/../CMake/resolve_dependency_modules
 
 # ---------------------------------------------------------------------------
-# 1. APT packages
+# 1. APT packages NOT covered by Velox's setup-ubuntu.sh
 # ---------------------------------------------------------------------------
 apt-get update
 
-apt-get install -y sudo locales wget tar tzdata git ccache ninja-build build-essential
-apt-get install -y curl zip unzip tar pkg-config gnupg lsb-release software-properties-common
-apt-get install -y chrpath patchelf openjdk-11-jdk maven python3 python3-pip
-apt-get install -y libssl-dev libcurl4-openssl-dev libicu-dev libbz2-dev
-apt-get install -y liblz4-dev libzstd-dev libsnappy-dev libsodium-dev liblzo2-dev
-apt-get install -y libgoogle-glog-dev libgflags-dev libgmock-dev libevent-dev
-apt-get install -y libelf-dev libdwarf-dev bison flex libfl-dev
-apt-get install -y libunwind-dev clang-format
-
-# CMake >= 3.28 via pip.
-pip3 install cmake==3.28.3 cmake-format
+# Java + Maven (needed by velox4j, not by Velox itself).
+apt-get install -y openjdk-11-jdk maven
 
 # LLVM 14 (for clang-format, used by Velox's format checks).
 wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
@@ -62,24 +55,18 @@ add-apt-repository "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main"
 apt-get update
 apt-get install -y llvm-14-dev clang-14
 
-# GCC 11 (required by Velox on Ubuntu 20.04).
-wget -qO- "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x1E9377A2BA9EF27F&options=mr" | apt-key add -
-echo "deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu focal main" > /etc/apt/sources.list.d/ubuntu-toolchain-r-ppa.list
-apt-get update
-apt-get install -y gcc-11 g++-11
-rm -f /usr/bin/gcc /usr/bin/g++
-ln -s /usr/bin/gcc-11 /usr/bin/gcc
-ln -s /usr/bin/g++-11 /usr/bin/g++
-
-export CC=/usr/bin/gcc-11
-export CXX=/usr/bin/g++-11
+# Tools needed for packaging / linking.
+apt-get install -y chrpath patchelf
 
 # ---------------------------------------------------------------------------
 # 2. Velox's official setup script
-#    Installs into /usr/local: fmt, folly, boost, protobuf, thrift, arrow,
-#    geos, stemmer, duckdb, librdkafka, cppkafka, fizz, wangle, mvfst, fbthrift.
+#    Installs ALL build prerequisites (gcc-11, cmake, ccache, ninja, apt deps)
+#    and all deps it knows about into /usr/local.
+#    We set INSTALL_PREREQUISITES=Y so it installs gcc-11, cmake, etc. itself.
 # ---------------------------------------------------------------------------
-PROMPT_ALWAYS_RESPOND=n INSTALL_PREREQUISITES=N bash ${SCRIPTDIR}/setup-ubuntu.sh
+export CC=/usr/bin/gcc-11
+export CXX=/usr/bin/g++-11
+PROMPT_ALWAYS_RESPOND=n INSTALL_PREREQUISITES=Y bash ${SCRIPTDIR}/setup-ubuntu.sh
 
 # Remove apt double-conversion to avoid conflict with source-built version.
 apt-get remove -y libdouble-conversion-dev libdouble-conversion3 || true
@@ -87,32 +74,40 @@ apt-get remove -y libdouble-conversion-dev libdouble-conversion3 || true
 # ---------------------------------------------------------------------------
 # 3. Remaining deps that setup-ubuntu.sh does NOT install, or whose apt
 #    versions are too old / lack CMake config files.
-#    Install order matters: c-ares -> absl -> re2 -> gRPC -> RocksDB.
+#    Build parameters are aligned with Velox's BUNDLED cmake modules.
+#    Install order matters: c-ares -> double-conversion -> xsimd -> simdjson
+#    -> absl -> re2 -> gRPC -> RocksDB.
 # ---------------------------------------------------------------------------
 mkdir -p ${BUILD_DIR}
 
-# --- c-ares 1.18.1 ---
-# Ubuntu 20.04's libc-ares-dev (1.15.0) lacks c-ares-config.cmake.
+# --- c-ares (cares-1_13_0, Velox's pinned version) ---
+# Velox BUNDLED: CARES_STATIC=ON, CARES_SHARED=OFF, c-ares-random-file.patch
+# We use 1.18.1 (1.13.0 has broken cmake version reporting) but apply the
+# same patch and build parameters.
 cd ${BUILD_DIR}
 wget -q https://github.com/c-ares/c-ares/archive/refs/tags/cares-1_18_1.tar.gz -O cares.tar.gz
 tar xzf cares.tar.gz
 cd c-ares-cares-1_18_1
+patch -p1 < ${VELOX_CMAKE_DIR}/c-ares/c-ares-random-file.patch
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
-  -DCARES_STATIC=ON -DCARES_SHARED=ON -DCARES_INSTALL=ON
+  -DCARES_STATIC=ON -DCARES_SHARED=OFF -DCARES_INSTALL=ON
 cmake --build build -j ${NPROC}
 cmake --install build
 
 # --- double-conversion (3.1.5) ---
+# Velox: find_package(double-conversion 3.1.5 REQUIRED)
 # Build from source to ensure cmake config is available and avoid apt conflict.
 cd ${BUILD_DIR}
 wget -q https://github.com/google/double-conversion/archive/refs/tags/v3.1.5.tar.gz -O dc.tar.gz
 tar xzf dc.tar.gz
 cd double-conversion-3.1.5
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX}   -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
+  -DBUILD_SHARED_LIBS=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 cmake --build build -j ${NPROC}
 cmake --install build
 
 # --- xsimd 10.0.0 ---
+# Velox BUNDLED: no special options.
 cd ${BUILD_DIR}
 wget -q https://github.com/xtensor-stack/xsimd/archive/refs/tags/10.0.0.tar.gz -O xsimd.tar.gz
 tar xzf xsimd.tar.gz
@@ -122,6 +117,10 @@ cmake --build build -j ${NPROC}
 cmake --install build
 
 # --- simdjson 3.9.3 ---
+# Velox BUNDLED: SIMDJSON_BUILD_STATIC, SIMDJSON_BUILD_TESTS=OFF,
+#   target_compile_definitions(simdjson PUBLIC SIMDJSON_EXPERIMENTAL_ALLOW_INCOMPLETE_JSON)
+# The compile definition is handled in Velox's CMakeLists.txt via
+# add_compile_definitions() so it works for both BUNDLED and SYSTEM.
 cd ${BUILD_DIR}
 wget -q https://github.com/simdjson/simdjson/archive/refs/tags/v3.9.3.tar.gz -O simdjson.tar.gz
 tar xzf simdjson.tar.gz
@@ -132,17 +131,20 @@ cmake --build build -j ${NPROC}
 cmake --install build
 
 # --- absl 20240116.2 ---
+# Velox BUNDLED: ABSL_BUILD_TESTING=OFF, ABSL_PROPAGATE_CXX_STD=ON,
+#   ABSL_ENABLE_INSTALL=ON, absl-macos.patch (macOS only, skip on Linux)
 cd ${BUILD_DIR}
 wget -q https://github.com/abseil/abseil-cpp/archive/refs/tags/20240116.2.tar.gz -O absl.tar.gz
 tar xzf absl.tar.gz
 cd abseil-cpp-20240116.2
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
-  -DABSL_BUILD_TESTING=OFF -DABSL_PROPAGATE_CXX_STD=ON -DABSL_ENABLE_INSTALL=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+  -DABSL_BUILD_TESTING=OFF -DABSL_PROPAGATE_CXX_STD=ON -DABSL_ENABLE_INSTALL=ON \
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 cmake --build build -j ${NPROC}
 cmake --install build
 
 # --- re2 2024-07-02 ---
-# Ubuntu 20.04's libre2-dev (20200101) is too old and lacks re2Config.cmake.
+# Velox BUNDLED: RE2_USE_ICU=ON, RE2_BUILD_TESTING=OFF, static (no BUILD_SHARED_LIBS)
 cd ${BUILD_DIR}
 wget -q https://github.com/google/re2/archive/refs/tags/2024-07-02.tar.gz -O re2.tar.gz
 tar xzf re2.tar.gz
@@ -154,10 +156,13 @@ cmake --build build -j ${NPROC}
 cmake --install build
 
 # --- gRPC 1.48.1 ---
+# Velox BUNDLED: grpc-tools-target.patch, all *_PROVIDER=package, gRPC_INSTALL=ON
 cd ${BUILD_DIR}
 wget -q https://github.com/grpc/grpc/archive/refs/tags/v1.48.1.tar.gz -O grpc.tar.gz
 tar xzf grpc.tar.gz
 cd grpc-1.48.1
+# Apply Velox's grpc-tools-target.patch (rename "tools" target -> "grpc_tools").
+patch -p1 < ${VELOX_CMAKE_DIR}/grpc/grpc-tools-target.patch
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} \
   -DgRPC_ABSL_PROVIDER=package \
   -DgRPC_ZLIB_PROVIDER=package \
@@ -171,6 +176,7 @@ cmake --build build -j ${NPROC}
 cmake --install build
 
 # --- RocksDB (FRocksDB-6.20.3) ---
+# Velox BUNDLED: ROCKSDB_BUILD_SHARED=ON
 cd ${BUILD_DIR}
 wget -q https://github.com/ververica/frocksdb/archive/refs/heads/FRocksDB-6.20.3.zip -O frocksdb.zip
 unzip -q frocksdb.zip

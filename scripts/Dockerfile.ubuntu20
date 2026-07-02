@@ -27,9 +27,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 COPY scripts/setup-helper-functions.sh /tmp/scripts/setup-helper-functions.sh
 COPY scripts/setup-ubuntu.sh /tmp/scripts/setup-ubuntu.sh
 COPY scripts/setup-deps-ubuntu20.sh /tmp/scripts/setup-deps-ubuntu20.sh
+# Copy patch files needed by setup-deps-ubuntu20.sh
+COPY CMake/resolve_dependency_modules/c-ares/c-ares-random-file.patch /tmp/CMake/resolve_dependency_modules/c-ares/c-ares-random-file.patch
+COPY CMake/resolve_dependency_modules/grpc/grpc-tools-target.patch /tmp/CMake/resolve_dependency_modules/grpc/grpc-tools-target.patch
 
 RUN bash /tmp/scripts/setup-deps-ubuntu20.sh \
-  && rm -rf /tmp/scripts
+  && rm -rf /tmp/scripts /tmp/CMake
 
 ENV CC=/usr/bin/gcc-11
 ENV CXX=/usr/bin/g++-11
