@@ -29,14 +29,12 @@ class CombinedWatermarkStatus {
   class PartialWatermark {
    public:
     bool setWatermark(int64_t watermark) {
-      if (watermark < watermark_) {
-        // If the new watermark is less than or equal to the current one, we do
-        // not update it.
+      idle_ = false;
+      if (watermark <= watermark_) {
         return false;
       }
 
       watermark_ = watermark;
-      idle_ = false;
       return true;
     }
 
@@ -57,14 +55,19 @@ class CombinedWatermarkStatus {
     bool idle_ = false;
   };
 
-  CombinedWatermarkStatus(int numWatermarks) {
+  CombinedWatermarkStatus(int32_t numWatermarks) {
     VELOX_CHECK(numWatermarks > 0, "numWatermarks must be greater than 0");
     partialWatermarks_.resize(numWatermarks);
   }
 
-  bool updateWatermark(int index, int64_t timestamp);
+  bool updateWatermark(int32_t index, int64_t timestamp);
+
+  // idle == true means WatermarkStatus.IDLE; false means ACTIVE.
+  bool updateStatus(int32_t index, bool idle);
 
   int64_t getCombinedWatermark();
+
+  bool isIdle() const;
 
  private:
   bool updateCombinedWatermark();
