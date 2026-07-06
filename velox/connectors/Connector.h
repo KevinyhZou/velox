@@ -242,6 +242,10 @@ class DataSink {
 
   /// Updates the current event-time watermark in milliseconds.
   virtual void setWatermark(int64_t watermark) {}
+
+  /// Restores sink state from checkpoint records produced by snapshot().
+  virtual void restoreState(
+      const std::vector<std::string>& /*checkpointRecords*/) {}
 };
 
 class DataSource {

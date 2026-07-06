@@ -17,6 +17,7 @@
 #include "velox/connectors/filesystem/FileSystemDataSink.h"
 #include <common/compression/Compression.h>
 #include <algorithm>
+#include <folly/json.h>
 #include "boost/uuid/uuid.hpp"
 #include "boost/uuid/uuid_generators.hpp"
 #include "boost/uuid/uuid_io.hpp"
@@ -148,8 +149,8 @@ const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
 }
 
 const std::pair<std::string, std::string>
-FileSystemDataSink::getWriterFileNames() const {
-  return fileNameGenerator_->gen();
+FileSystemDataSink::getWriterFileNames(const std::string& bucketId) const {
+  return fileNameGenerator_->gen(bucketId);
 }
 
 namespace {
@@ -181,9 +182,15 @@ std::string makePartitionDirectory(
 }
 } // namespace
 
+std::string FileSystemDataSink::bucketIdForPartition(
+    const std::optional<std::string>& partition) const {
+  return partition.value_or("");
+}
+
 FsWriterParameters FileSystemDataSink::getWriterParameters(
     const std::optional<std::string>& partition) const {
-  auto [targetFileName, writeFileName] = getWriterFileNames();
+  auto [targetFileName, writeFileName] =
+      getWriterFileNames(bucketIdForPartition(partition));
   return FsWriterParameters{
       partition,
       targetFileName,
@@ -554,7 +561,124 @@ std::vector<std::string> FileSystemDataSink::snapshot(int64_t checkpointId) {
         pendingWriterInfo_.end());
     pendingWriterInfo_.clear();
   }
-  return {};
+  return snapshotBucketState(checkpointId);
+}
+
+std::vector<std::string> FileSystemDataSink::snapshotBucketState(
+    int64_t checkpointId) const {
+  folly::dynamic state = folly::dynamic::object;
+  state["connector"] = "filesystem";
+  state["checkpointId"] = checkpointId;
+  state["buckets"] = folly::dynamic::array;
+  state["pendingFiles"] = folly::dynamic::array;
+
+  std::unordered_map<std::string, uint64_t> counters =
+      fileNameGenerator_->partCounters();
+  for (const auto& [_, writerInfos] : checkpointWriterInfo_) {
+    for (const auto& writerInfo : writerInfos) {
+      const auto& writerParams = writerInfo->writerParameters;
+      const auto bucketId = bucketIdForPartition(writerParams.partitionName());
+      counters.try_emplace(bucketId, fileNameGenerator_->partCounter(bucketId));
+    }
+  }
+  for (const auto& writerInfo : pendingWriterInfo_) {
+    const auto& writerParams = writerInfo->writerParameters;
+    const auto bucketId = bucketIdForPartition(writerParams.partitionName());
+    counters.try_emplace(bucketId, fileNameGenerator_->partCounter(bucketId));
+  }
+
+  for (const auto& [bucketId, partCounter] : counters) {
+    folly::dynamic bucket = folly::dynamic::object;
+    bucket["bucketId"] = bucketId;
+    bucket["partCounter"] = partCounter;
+    state["buckets"].push_back(std::move(bucket));
+  }
+
+  for (const auto& [pendingCheckpointId, writerInfos] : checkpointWriterInfo_) {
+    for (const auto& writerInfo : writerInfos) {
+      const auto& writerParams = writerInfo->writerParameters;
+      folly::dynamic pendingFile = folly::dynamic::object;
+      pendingFile["checkpointId"] = pendingCheckpointId;
+      pendingFile["bucketId"] =
+          bucketIdForPartition(writerParams.partitionName());
+      pendingFile["partitionName"] = writerParams.partitionName().value_or("");
+      pendingFile["hasPartition"] = writerParams.partitionName().has_value();
+      pendingFile["targetFileName"] = writerParams.targetFileName();
+      pendingFile["targetDirectory"] = writerParams.targetDirectory();
+      pendingFile["writeFileName"] = writerParams.writeFileName();
+      pendingFile["writeDirectory"] = writerParams.writeDirectory();
+      pendingFile["createTime"] =
+          static_cast<int64_t>(writerInfo->createTime());
+      pendingFile["committed"] = writerInfo->isCommitted();
+      pendingFile["fileRolled"] = writerInfo->isFileRolled();
+      state["pendingFiles"].push_back(std::move(pendingFile));
+    }
+  }
+
+  return {folly::toJson(state)};
+}
+
+void FileSystemDataSink::restoreState(
+    const std::vector<std::string>& checkpointRecords) {
+  for (const auto& checkpointRecord : checkpointRecords) {
+    folly::dynamic state;
+    try {
+      state = folly::parseJson(checkpointRecord);
+    } catch (const std::exception&) {
+      continue;
+    }
+    if (!state.isObject() || !state.count("connector") ||
+        state["connector"].asString() != "filesystem") {
+      continue;
+    }
+
+    if (state.count("buckets")) {
+      for (const auto& bucket : state["buckets"]) {
+        const auto bucketId = bucket["bucketId"].asString();
+        const auto partCounter = bucket["partCounter"].asInt();
+        VELOX_CHECK_GE(partCounter, 0, "Invalid restored part counter");
+        fileNameGenerator_->restorePartCounter(
+            bucketId, static_cast<uint64_t>(partCounter));
+      }
+    }
+
+    if (!state.count("pendingFiles")) {
+      continue;
+    }
+    int32_t restoredFileIndex = 0;
+    for (const auto& pendingFile : state["pendingFiles"]) {
+      const auto pendingCheckpointId = pendingFile["checkpointId"].asInt();
+      const bool hasPartition = pendingFile["hasPartition"].asBool();
+      std::optional<std::string> partitionName = std::nullopt;
+      if (hasPartition) {
+        partitionName = pendingFile["partitionName"].asString();
+        partitionCreateTimeMs_.try_emplace(
+            partitionName.value(), pendingFile["createTime"].asInt() * 1000);
+      }
+
+      auto* connectorPool = queryCtx_->connectorMemoryPool();
+      auto writerPool = connectorPool->addAggregateChild(fmt::format(
+          "{}.restored-file-system-sink.{}.{}",
+          connectorPool->name(),
+          pendingCheckpointId,
+          restoredFileIndex++));
+      auto sinkPool = createSinkPool(writerPool);
+      auto writerInfo = std::make_shared<FsWriterInfo>(
+          FsWriterParameters{
+              partitionName,
+              pendingFile["targetFileName"].asString(),
+              pendingFile["targetDirectory"].asString(),
+              pendingFile["writeFileName"].asString(),
+              pendingFile["writeDirectory"].asString()},
+          std::move(writerPool),
+          std::move(sinkPool),
+          static_cast<time_t>(pendingFile["createTime"].asInt()));
+      writerInfo->setCommitted(pendingFile["committed"].asBool());
+      writerInfo->setFileRolled(pendingFile["fileRolled"].asBool());
+      checkpointWriterInfo_[pendingCheckpointId].emplace_back(
+          std::move(writerInfo));
+    }
+  }
 }
 
 // Renames in-progress files and returns paths ready for Flink-side partition
@@ -762,11 +886,13 @@ const int64_t FileSystemDataSink::extractTimestampFromPartitionName(
   return timestamp.getSeconds();
 }
 
-const std::pair<std::string, std::string> FsFileNameGenerator::gen() const {
+const std::pair<std::string, std::string> FsFileNameGenerator::gen(
+    const std::string& bucketId) const {
   std::pair<std::string, std::string> fileNames;
   std::stringstream targetFileName;
   std::stringstream writeFileName;
-  targetFileName << "part-" << prefix_ << "-" << taskId_ << "-" << partCounter_
+  auto& partCounter = partCounters_[bucketId];
+  targetFileName << "part-" << prefix_ << "-" << taskId_ << "-" << partCounter
                  << suffix_;
   boost::uuids::random_generator generator;
   boost::uuids::uuid uuid = generator();
@@ -774,8 +900,20 @@ const std::pair<std::string, std::string> FsFileNameGenerator::gen() const {
                 << to_string(uuid);
   fileNames.first = targetFileName.str();
   fileNames.second = writeFileName.str();
-  partCounter_++;
+  partCounter++;
   return fileNames;
+}
+
+uint64_t FsFileNameGenerator::partCounter(const std::string& bucketId) const {
+  const auto it = partCounters_.find(bucketId);
+  return it == partCounters_.end() ? 0 : it->second;
+}
+
+void FsFileNameGenerator::restorePartCounter(
+    const std::string& bucketId,
+    uint64_t partCounter) const {
+  auto& currentCounter = partCounters_[bucketId];
+  currentCounter = std::max(currentCounter, partCounter);
 }
 
 } // namespace facebook::velox::connector::filesystem

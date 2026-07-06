@@ -132,6 +132,12 @@ class TableWriter : public Operator {
     }
   }
 
+  void restoreState(const std::vector<std::string>& checkpointRecords) override {
+    if (dataSink_) {
+      dataSink_->restoreState(checkpointRecords);
+    }
+  }
+
   virtual bool needsInput() const override {
     return true;
   }

@@ -18,6 +18,8 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <string>
+#include <unordered_map>
 #include "boost/algorithm/string.hpp"
 #include "folly/container/F14Map.h"
 #include "velox/common/file/FileSystems.h"
@@ -94,6 +96,10 @@ struct FsWriterInfo : public hive::HiveWriterInfo {
     fileRolled_ = fileRolled;
   }
 
+  time_t createTime() const {
+    return createTime_;
+  }
+
  private:
   const time_t createTime_;
   bool committed_ = false;
@@ -110,13 +116,23 @@ class FsFileNameGenerator {
       const std::string& taskId)
       : prefix_(prefix), suffix_(suffix), taskId_(taskId) {}
 
-  const std::pair<std::string, std::string> gen() const;
+  const std::pair<std::string, std::string> gen(
+      const std::string& bucketId) const;
+
+  uint64_t partCounter(const std::string& bucketId) const;
+
+  const std::unordered_map<std::string, uint64_t>& partCounters() const {
+    return partCounters_;
+  }
+
+  void restorePartCounter(const std::string& bucketId, uint64_t partCounter)
+      const;
 
  private:
   const std::string prefix_;
   const std::string suffix_;
   const std::string taskId_;
-  mutable uint64_t partCounter_ = 0;
+  mutable std::unordered_map<std::string, uint64_t> partCounters_;
 };
 
 class FsPartitionIdGenerator : public hive::PartitionIdGenerator {
@@ -224,6 +240,9 @@ class FileSystemDataSink : public DataSink {
   /// Receives event-time watermark in milliseconds.
   void setWatermark(int64_t watermark) override;
 
+  /// Restores bucket counters and pending files from checkpoint records.
+  void restoreState(const std::vector<std::string>& checkpointRecords) override;
+
   // For test.
   const std::vector<FsWriterInfoPtr>& getWriteInfos() {
     return writerInfo_;
@@ -326,10 +345,16 @@ class FileSystemDataSink : public DataSink {
   // prefix to the target file for write file name. The coordinator (or driver
   // for Presto on spark) will rename the write file to target file to commit
   // the table write when update the metadata store.
-  const std::pair<std::string, std::string> getWriterFileNames() const;
+  const std::pair<std::string, std::string> getWriterFileNames(
+      const std::string& bucketId) const;
 
   FsWriterParameters getWriterParameters(
       const std::optional<std::string>& partition) const;
+
+  std::string bucketIdForPartition(
+      const std::optional<std::string>& partition) const;
+
+  std::vector<std::string> snapshotBucketState(int64_t checkpointId) const;
 
   // Get the HiveWriter corresponding to the row from partitionIds.
   FOLLY_ALWAYS_INLINE FsWriterId getWriterId(size_t row) const;
