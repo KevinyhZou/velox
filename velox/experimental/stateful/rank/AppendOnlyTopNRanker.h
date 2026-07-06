@@ -39,20 +39,18 @@ class AppendOnlyTopNRanker : public exec::Operator,
       bool outputRankNumber,
       int64_t cacheSize);
 
-  bool needsInput() const override {
-    VELOX_NYI();
-  }
+  bool needsInput() const override { return false; }
 
   void addInput(RowVectorPtr input) override {
-    VELOX_NYI();
+    // No-op: input is fed through StatefulOperator::addInput(StreamElementPtr).
   }
 
   RowVectorPtr getOutput() override {
-    VELOX_NYI();
+    return nullptr;
   }
 
   exec::BlockingReason isBlocked(ContinueFuture* /*future*/) override {
-    VELOX_NYI();
+    return exec::BlockingReason::kNotBlocked;
   }
 
   bool isFinished() override {

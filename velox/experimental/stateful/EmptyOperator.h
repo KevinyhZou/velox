@@ -37,31 +37,31 @@ class EmptyOperator : public exec::Operator {
   void initialize() override {}
 
   bool needsInput() const override {
-    VELOX_NYI();
+    return false;
   }
 
   bool isFinished() override {
-    VELOX_NYI();
+    return true;
   }
 
   void traceInput(const RowVectorPtr& input) override {
-    VELOX_NYI();
+    // No-op: EmptyOperator does not process input.
   }
 
   void addInput(RowVectorPtr input) override {
-    VELOX_NYI();
+    // No-op: needsInput() returns false, so addInput should never be called.
   }
 
   RowVectorPtr getOutput() override {
-    VELOX_NYI();
+    return nullptr;
   }
 
   void noMoreInput() override {
-    VELOX_NYI();
+    // No-op: EmptyOperator does not have input to drain.
   }
 
   exec::BlockingReason isBlocked(ContinueFuture* future) override {
-    VELOX_NYI();
+    return exec::BlockingReason::kNotBlocked;
   }
 
   void close() override {}

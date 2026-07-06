@@ -28,11 +28,12 @@ GroupWindowAggsHandler::GroupWindowAggsHandler(
           "GroupWindowAggsHandler") {}
 
 void GroupWindowAggsHandler::addInput(RowVectorPtr input) {
-  VELOX_NYI();
+  // No-op: input is managed via StatefulOperator API (accumulate/setAccumulators).
 }
 
 RowVectorPtr GroupWindowAggsHandler::getOutput() {
-  VELOX_NYI();
+  // No-op: input is managed via StatefulOperator API (accumulate/setAccumulators).
+  return nullptr;
 }
 
 bool GroupWindowAggsHandler::isFinished() {
