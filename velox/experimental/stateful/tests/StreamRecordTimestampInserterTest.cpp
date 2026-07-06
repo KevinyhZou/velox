@@ -269,6 +269,20 @@ TEST_F(StreamRecordTimestampInserterTest, handlesMultipleBatchesIndependently) {
   EXPECT_EQ(80, spyPtr->timestamps()[1]);
 }
 
+TEST_F(StreamRecordTimestampInserterTest, emitsEmptyBatchWithoutTimestamp) {
+  auto spy = std::make_unique<SpyStatefulOperator>(driverCtx_.get());
+  auto* spyPtr = spy.get();
+  auto inserter = makeInserter(std::move(spy), /*rowtimeFieldIndex=*/0);
+
+  inserter->addInput(std::make_shared<StreamRecord>("input", tsBatch({})));
+  inserter->advance();
+
+  ASSERT_EQ(1, spyPtr->recordSizes().size());
+  EXPECT_EQ(0, spyPtr->recordSizes()[0]);
+  ASSERT_EQ(1, spyPtr->hasTimestamps().size());
+  EXPECT_FALSE(spyPtr->hasTimestamps()[0]);
+}
+
 } // namespace
 } // namespace facebook::velox::stateful::test
 

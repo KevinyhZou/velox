@@ -51,9 +51,15 @@ void StreamRecordTimestampInserter::advance() {
   auto child = timestampVector->childAt(0);
   auto tsVector = child->as<SimpleVector<Timestamp>>();
   VELOX_CHECK_NOT_NULL(tsVector, "Rowtime column is not a SimpleVector<Timestamp>");
-  const vector_size_t n = child->size();
+  const vector_size_t timestampSize = timestampVector->size();
+  if (timestampSize == 0) {
+    pushOutput(std::make_shared<StreamRecord>(
+        getPlanNodeId(), std::move(input_)));
+    input_.reset();
+    return;
+  }
   int64_t maxTs = std::numeric_limits<int64_t>::min();
-  for (vector_size_t i = 0; i < n; ++i) {
+  for (vector_size_t i = 0; i < timestampSize; ++i) {
     const int64_t millis = tsVector->valueAt(i).toMillis();
     if (millis > maxTs) {
       maxTs = millis;
