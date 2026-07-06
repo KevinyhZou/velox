@@ -46,9 +46,11 @@ class StatefulOperator {
           keyedStateBackendParameters = nullptr)
       : keyedStateBackendParameters_(keyedStateBackendParameters),
         operator_(std::move(op)),
-        targets_(std::move(targets)) {
+         targets_(std::move(targets)) {
     sink = operator_->operatorType() == "TableWrite";
   }
+
+  virtual ~StatefulOperator() = default;
 
   virtual void initialize();
 
@@ -73,6 +75,13 @@ class StatefulOperator {
   virtual void processWatermarkStatus(bool idle, int32_t index);
 
   virtual void processWatermarkStatus(bool idle);
+
+  /// Called periodically by the driver thread (via StatefulTask::next) after
+  /// each drain attempt. Operators with idle-timeout detection (e.g.
+  /// WatermarkAssigner) override this to check for input idleness and emit
+  /// WatermarkStatus events into the task output. The default implementation
+  /// recursively forwards the call to downstream targets.
+  virtual void checkWatermarkStatus(int64_t now);
 
   virtual void initializeState();
 

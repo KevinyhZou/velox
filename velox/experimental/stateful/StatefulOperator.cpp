@@ -210,6 +210,12 @@ void StatefulOperator::processWatermarkStatus(bool idle) {
   processWatermarkStatus(idle, 0);
 }
 
+void StatefulOperator::checkWatermarkStatus(int64_t now) {
+  for (auto& target : targets_) {
+    target->checkWatermarkStatus(now);
+  }
+}
+
 void StatefulOperator::initializeStateBackend(StateBackend* stateBackend) {
   if (!stateHandler_) {
     stateHandler_ = std::make_shared<StreamOperatorStateHandler>(

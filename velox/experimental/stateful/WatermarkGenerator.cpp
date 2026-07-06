@@ -108,7 +108,8 @@ WatermarkGenerator::WatermarkGenerator(
     : op_(std::move(op)),
       idleTimeout_(idleTimeout),
       rowtimeFieldIndex_(rowtimeFieldIndex),
-      watermarkInterval_(watermarkInterval) {}
+      watermarkInterval_(watermarkInterval),
+      idleTracker_(idleTimeout) {}
 
 std::optional<int64_t> WatermarkGenerator::generate(const RowVectorPtr& input) {
   watermark::validateRowtimeNoNulls(input, rowtimeFieldIndex_);

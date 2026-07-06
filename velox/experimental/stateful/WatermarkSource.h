@@ -14,12 +14,21 @@
  * limitations under the License.
  */
 #pragma once
+#include <atomic>
+#include <cstdint>
+#include <memory>
 
+#include "velox/experimental/stateful/ProcessingTimeScheduler.h"
 #include "velox/experimental/stateful/StatefulOperator.h"
 #include "velox/experimental/stateful/WatermarkGenerator.h"
 
 namespace facebook::velox::stateful {
 
+/// WatermarkSource wraps a source operator and generates watermarks from the
+/// source output using WatermarkGenerator. When an idle timeout is configured
+/// on the generator, the source also detects idle input (no source output for
+/// the idle timeout duration) and emits WatermarkStatus.IDLE / ACTIVE
+/// downstream, mirroring Flink's source-level idleness semantics.
 class WatermarkSource : public StatefulOperator {
  public:
   WatermarkSource(
@@ -27,18 +36,31 @@ class WatermarkSource : public StatefulOperator {
       std::vector<StatefulOperatorPtr> targets,
       std::unique_ptr<WatermarkGenerator> watermarkGenerator);
 
+  ~WatermarkSource() override;
+
   void initialize() override;
 
   void advance() override;
 
   void close() override;
 
+  /// Invoked by the driver thread (via StatefulTask::next) after each drain
+  /// attempt. Performs the idle check and emits WatermarkStatus if the source
+  /// has just transitioned to idle.
+  void checkWatermarkStatus(int64_t now) override;
+
   std::string name() const override {
     return "WatermarkSource";
   }
 
  private:
+  void scheduleIdleTimer(int64_t now);
+
+  void onIdleTimerFired(int64_t timestamp);
+
   std::unique_ptr<WatermarkGenerator> watermarkGenerator_;
+  std::unique_ptr<ProcessingTimeScheduler> scheduler_;
+  std::atomic<bool> idleCheckRequested_{false};
 };
 
 } // namespace facebook::velox::stateful

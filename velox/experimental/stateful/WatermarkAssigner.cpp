@@ -16,6 +16,7 @@
 #include "velox/experimental/stateful/WatermarkAssigner.h"
 
 #include "velox/experimental/stateful/WatermarkGenerator.h"
+#include "velox/experimental/stateful/window/TimeWindowUtil.h"
 
 namespace facebook::velox::stateful {
 
@@ -28,12 +29,26 @@ WatermarkAssigner::WatermarkAssigner(
     : StatefulOperator(std::move(op), std::move(targets)),
       idleTimeout_(idleTimeout),
       rowtimeFieldIndex_(rowtimeFieldIndex),
-      watermarkInterval_(watermarkInterval) {}
+      watermarkInterval_(watermarkInterval),
+      idleTracker_(idleTimeout) {}
+
+WatermarkAssigner::~WatermarkAssigner() {
+  WatermarkAssigner::close();
+}
 
 void WatermarkAssigner::addInput(StreamElementPtr input) {
   auto record = std::static_pointer_cast<StreamRecord>(input);
   input_ = record->record();
   op()->addInput(input_);
+
+  if (idleTracker_.isEnabled()) {
+    int64_t now = TimeWindowUtil::getCurrentProcessingTime();
+    if (idleTracker_.onRecord(now)) {
+      // Was idle; emit WatermarkStatus.ACTIVE downstream.
+      emitWatermarkStatus(false);
+    }
+    scheduleIdleTimer(now);
+  }
 }
 
 void WatermarkAssigner::advance() {
@@ -78,7 +93,54 @@ void WatermarkAssigner::advance() {
   input_.reset();
 }
 
+void WatermarkAssigner::checkWatermarkStatus(int64_t now) {
+  if (!idleTracker_.isEnabled()) {
+    StatefulOperator::checkWatermarkStatus(now);
+    return;
+  }
+
+  if (idleCheckRequested_.exchange(false)) {
+    if (idleTracker_.checkIdle(now)) {
+      emitWatermarkStatus(true);
+    }
+    // Reschedule the next idle check.
+    scheduleIdleTimer(now);
+  }
+
+  // Forward to downstream targets.
+  StatefulOperator::checkWatermarkStatus(now);
+}
+
+void WatermarkAssigner::scheduleIdleTimer(int64_t now) {
+  if (!idleTracker_.isEnabled()) {
+    return;
+  }
+  if (!scheduler_) {
+    scheduler_ = std::make_unique<SystemProcessingTimeScheduler>();
+  }
+  int64_t fireAt = now + idleTimeout_;
+  scheduler_->registerTimer(
+      fireAt, ProcessingTimerTask(fireAt, [this](int64_t timestamp) {
+        onIdleTimerFired(timestamp);
+      }));
+}
+
+void WatermarkAssigner::onIdleTimerFired(int64_t timestamp) {
+  // Runs on the background scheduler thread. Signal the driver thread to
+  // perform the idle check and wake the Java mailbox so it can drain any
+  // emitted WatermarkStatus event from pendings_.
+  idleCheckRequested_.store(true);
+  auto bridge = nativeCallbackBridge();
+  if (bridge) {
+    bridge->onProcessingTime(timestamp);
+  }
+}
+
 void WatermarkAssigner::close() {
+  if (scheduler_) {
+    scheduler_->close();
+    scheduler_.reset();
+  }
   StatefulOperator::close();
   input_.reset();
 }

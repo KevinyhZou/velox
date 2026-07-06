@@ -22,6 +22,7 @@
 #include <string>
 
 #include "velox/exec/Operator.h"
+#include "velox/experimental/stateful/WatermarkIdleTracker.h"
 #include "velox/vector/ComplexVector.h"
 
 namespace facebook::velox::stateful {
@@ -77,18 +78,42 @@ class WatermarkGenerator {
     return lastWatermark_;
   }
 
+  /// Notifies the tracker that input data has arrived. Returns true if the
+  /// tracker was previously idle (caller should emit WatermarkStatus.ACTIVE).
+  bool onRecord(int64_t now) {
+    return idleTracker_.onRecord(now);
+  }
+
+  /// Checks whether the input has been idle long enough to transition to IDLE.
+  /// Returns true if the tracker just became idle (caller should emit
+  /// WatermarkStatus.IDLE).
+  bool checkIdle(int64_t now) {
+    return idleTracker_.checkIdle(now);
+  }
+
+  bool isIdle() const {
+    return idleTracker_.isIdle();
+  }
+
+  bool isIdlenessEnabled() const {
+    return idleTracker_.isEnabled();
+  }
+
+  int64_t idleTimeout() const {
+    return idleTimeout_;
+  }
+
   void initialize() {
     op_->initialize();
   }
 
  private:
   std::unique_ptr<exec::Operator> op_;
-  // TODO: Use idleTimeout_ to detect idle inputs and emit idle/active watermark
-  // status, matching Flink WatermarkAssignerOperator semantics.
   const int64_t idleTimeout_;
   const int rowtimeFieldIndex_;
   const int64_t watermarkInterval_;
   int64_t currentWatermark_ = 0;
   int64_t lastWatermark_ = 0;
+  WatermarkIdleTracker idleTracker_;
 };
 } // namespace facebook::velox::stateful

@@ -15,6 +15,8 @@
  */
 #include "velox/experimental/stateful/WatermarkSource.h"
 
+#include "velox/experimental/stateful/window/TimeWindowUtil.h"
+
 namespace facebook::velox::stateful {
 
 WatermarkSource::WatermarkSource(
@@ -24,6 +26,10 @@ WatermarkSource::WatermarkSource(
     : StatefulOperator(std::move(op), std::move(targets)),
       watermarkGenerator_(std::move(watermarkGenerator)) {
   VELOX_CHECK_NOT_NULL(watermarkGenerator_);
+}
+
+WatermarkSource::~WatermarkSource() {
+  WatermarkSource::close();
 }
 
 void WatermarkSource::initialize() {
@@ -50,9 +56,56 @@ void WatermarkSource::advance() {
   if (watermark.has_value()) {
     emitWatermark(watermark.value());
   }
+
+  if (watermarkGenerator_->isIdlenessEnabled()) {
+    int64_t now = TimeWindowUtil::getCurrentProcessingTime();
+    if (watermarkGenerator_->onRecord(now)) {
+      emitWatermarkStatus(false);
+    }
+    scheduleIdleTimer(now);
+  }
+}
+
+void WatermarkSource::checkWatermarkStatus(int64_t now) {
+  if (!watermarkGenerator_->isIdlenessEnabled()) {
+    StatefulOperator::checkWatermarkStatus(now);
+    return;
+  }
+
+  if (idleCheckRequested_.exchange(false)) {
+    if (watermarkGenerator_->checkIdle(now)) {
+      emitWatermarkStatus(true);
+    }
+    scheduleIdleTimer(now);
+  }
+
+  StatefulOperator::checkWatermarkStatus(now);
+}
+
+void WatermarkSource::scheduleIdleTimer(int64_t now) {
+  if (!scheduler_) {
+    scheduler_ = std::make_unique<SystemProcessingTimeScheduler>();
+  }
+  int64_t fireAt = now + watermarkGenerator_->idleTimeout();
+  scheduler_->registerTimer(
+      fireAt, ProcessingTimerTask(fireAt, [this](int64_t timestamp) {
+        onIdleTimerFired(timestamp);
+      }));
+}
+
+void WatermarkSource::onIdleTimerFired(int64_t timestamp) {
+  idleCheckRequested_.store(true);
+  auto bridge = nativeCallbackBridge();
+  if (bridge) {
+    bridge->onProcessingTime(timestamp);
+  }
 }
 
 void WatermarkSource::close() {
+  if (scheduler_) {
+    scheduler_->close();
+    scheduler_.reset();
+  }
   if (watermarkGenerator_) {
     watermarkGenerator_->close();
     watermarkGenerator_.reset();

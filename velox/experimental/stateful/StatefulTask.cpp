@@ -22,6 +22,7 @@
 #include "velox/experimental/stateful/StatefulPlanner.h"
 #include "velox/experimental/stateful/state/HashMapStateBackend.h"
 #include "velox/experimental/stateful/state/RocksDBStateBackend.h"
+#include "velox/experimental/stateful/window/TimeWindowUtil.h"
 
 namespace facebook::velox::stateful {
 
@@ -141,21 +142,28 @@ StreamElementPtr StatefulTask::next(ContinueFuture* future, int32_t& retCode) {
 
   operatorChain_->advanceWithFuture(future);
   if (future != nullptr && future->valid()) {
+    // Source is blocked. Give operators a chance to detect idle input and
+    // emit WatermarkStatus events into pendings_ before returning.
+    checkWatermarkStatus(TimeWindowUtil::getCurrentProcessingTime());
     return nullptr;
   }
   if (pendings_.empty()) {
-    if (operatorChain_->isFinished()) {
-      operatorChain_->finish();
-      finish();
-      // finish may trigger window flush and generate output.
-      if (pendings_.empty()) {
-        retCode = 1;
+    // No output produced. Give operators a chance to detect idle input.
+    checkWatermarkStatus(TimeWindowUtil::getCurrentProcessingTime());
+    if (pendings_.empty()) {
+      if (operatorChain_->isFinished()) {
+        operatorChain_->finish();
+        finish();
+        // finish may trigger window flush and generate output.
+        if (pendings_.empty()) {
+          retCode = 1;
+          return nullptr;
+        }
+      } else if (operatorChain_->sourceEmpty()) {
+        return nullptr;
+      } else {
         return nullptr;
       }
-    } else if (operatorChain_->sourceEmpty()) {
-      return nullptr;
-    } else {
-      return nullptr;
     }
   }
   return popOutput();
@@ -199,6 +207,12 @@ void StatefulTask::notifyWatermarkStatus(bool idle, int32_t index) {
 
 void StatefulTask::notifyWatermarkStatus(bool idle) {
   operatorChain_->processWatermarkStatus(idle);
+}
+
+void StatefulTask::checkWatermarkStatus(int64_t now) {
+  if (operatorChain_) {
+    operatorChain_->checkWatermarkStatus(now);
+  }
 }
 
 void StatefulTask::initializeState(

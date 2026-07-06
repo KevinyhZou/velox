@@ -38,7 +38,8 @@ velox_add_library(
   WatermarkGenerator.cpp
   WatermarkSource.cpp
   WatermarkAssigner.cpp
-  StreamRecordTimestampInserter.cpp)
+  StreamRecordTimestampInserter.cpp
+  WatermarkIdleTracker.cpp)
 
 velox_link_libraries(
   velox_stateful_exec

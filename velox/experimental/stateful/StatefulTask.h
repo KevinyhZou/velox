@@ -72,6 +72,10 @@ class StatefulTask : public exec::Task {
 
   void notifyWatermarkStatus(bool idle);
 
+  /// Called on the driver thread to give each operator in the chain a chance
+  /// to perform idle-timeout detection and emit WatermarkStatus events.
+  void checkWatermarkStatus(int64_t now);
+
   void initializeState(
       const std::shared_ptr<const KeyedStateBackendParameters> params,
       const std::vector<std::string>& checkpointRecords = {});
