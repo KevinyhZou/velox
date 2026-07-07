@@ -55,6 +55,7 @@ class WatermarkIdleTracker {
   const int64_t idleTimeout_;
   int64_t lastRecordWallTime_{0};
   bool idle_{false};
+  bool baselineInitialized_{false};
 };
 
 } // namespace facebook::velox::stateful

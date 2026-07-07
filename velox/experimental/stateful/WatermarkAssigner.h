@@ -83,8 +83,7 @@ class WatermarkAssigner : public StatefulOperator {
   std::unique_ptr<ProcessingTimeScheduler> scheduler_;
 
   // Set to true when a timer is registered, cleared when it fires. Prevents
-  // duplicate timer registrations. The true→false transition also signals
-  // checkWatermarkStatus to perform an idle check.
+  // duplicate timer registrations.
   std::atomic<bool> timerPending_{false};
 };
 

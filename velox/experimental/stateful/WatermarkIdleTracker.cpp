@@ -25,6 +25,7 @@ bool WatermarkIdleTracker::onRecord(int64_t currentWallMs) {
     return false;
   }
   lastRecordWallTime_ = currentWallMs;
+  baselineInitialized_ = true;
   if (idle_) {
     idle_ = false;
     return true;
@@ -36,10 +37,11 @@ bool WatermarkIdleTracker::checkIdle(int64_t currentWallMs) {
   if (!isEnabled() || idle_) {
     return false;
   }
-  if (lastRecordWallTime_ == 0) {
+  if (!baselineInitialized_) {
     // No record has ever arrived. Treat the first check as the baseline so we
     // do not immediately declare idleness before any data has been seen.
     lastRecordWallTime_ = currentWallMs;
+    baselineInitialized_ = true;
     return false;
   }
   if (currentWallMs - lastRecordWallTime_ > idleTimeout_) {

@@ -74,6 +74,17 @@ TEST(WatermarkIdleTrackerTest, checkIdleAfterReactivationDoesNotFireEarly) {
   EXPECT_TRUE(tracker.checkIdle(12'001));
 }
 
+TEST(WatermarkIdleTrackerTest, repeatedCheckIdleDoesNotResetBaseline) {
+  WatermarkIdleTracker tracker(5'000);
+  // First call sets baseline at 100'000.
+  EXPECT_FALSE(tracker.checkIdle(100'000));
+  // Subsequent calls must not reset the baseline.
+  EXPECT_FALSE(tracker.checkIdle(102'000));
+  EXPECT_FALSE(tracker.checkIdle(104'000));
+  // Timeout measured from the original baseline.
+  EXPECT_TRUE(tracker.checkIdle(106'000));
+}
+
 TEST(WatermarkIdleTrackerTest, firstCheckSetsBaselineWithoutFiring) {
   WatermarkIdleTracker tracker(5'000);
   EXPECT_FALSE(tracker.checkIdle(100'000));
