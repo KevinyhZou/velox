@@ -46,7 +46,7 @@ class StatefulOperator {
           keyedStateBackendParameters = nullptr)
       : keyedStateBackendParameters_(keyedStateBackendParameters),
         operator_(std::move(op)),
-         targets_(std::move(targets)) {
+        targets_(std::move(targets)) {
     sink = operator_->operatorType() == "TableWrite";
   }
 
