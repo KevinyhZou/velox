@@ -85,6 +85,10 @@ class WatermarkAssigner : public StatefulOperator {
   // Set by the background timer thread to request an idle check on the driver
   // thread; drained by checkWatermarkStatus().
   std::atomic<bool> idleCheckRequested_{false};
+
+  // Set to true when a timer is registered, cleared when it fires. Prevents
+  // duplicate timer registrations.
+  std::atomic<bool> timerPending_{false};
 };
 
 } // namespace facebook::velox::stateful

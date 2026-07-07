@@ -47,7 +47,6 @@ void WatermarkAssigner::addInput(StreamElementPtr input) {
       // Was idle; emit WatermarkStatus.ACTIVE downstream.
       emitWatermarkStatus(false);
     }
-    scheduleIdleTimer(now);
   }
 }
 
@@ -103,16 +102,16 @@ void WatermarkAssigner::checkWatermarkStatus(int64_t now) {
     if (idleTracker_.checkIdle(now)) {
       emitWatermarkStatus(true);
     }
-    // Reschedule the next idle check.
-    scheduleIdleTimer(now);
   }
+
+  scheduleIdleTimer(now);
 
   // Forward to downstream targets.
   StatefulOperator::checkWatermarkStatus(now);
 }
 
 void WatermarkAssigner::scheduleIdleTimer(int64_t now) {
-  if (!idleTracker_.isEnabled()) {
+  if (!idleTracker_.isEnabled() || timerPending_.exchange(true)) {
     return;
   }
   if (!scheduler_) {
@@ -126,9 +125,9 @@ void WatermarkAssigner::scheduleIdleTimer(int64_t now) {
 }
 
 void WatermarkAssigner::onIdleTimerFired(int64_t timestamp) {
-  // Runs on the background scheduler thread. Signal the driver thread to
-  // perform the idle check and wake the Java mailbox so it can drain any
-  // emitted WatermarkStatus event from pendings_.
+  // Clear pending flag before signalling so checkWatermarkStatus can
+  // re-register the next timer.
+  timerPending_ = false;
   idleCheckRequested_.store(true);
   auto bridge = nativeCallbackBridge();
   if (bridge) {

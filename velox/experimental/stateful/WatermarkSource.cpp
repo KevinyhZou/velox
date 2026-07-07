@@ -62,7 +62,6 @@ void WatermarkSource::advance() {
     if (watermarkGenerator_->onRecord(now)) {
       emitWatermarkStatus(false);
     }
-    scheduleIdleTimer(now);
   }
 }
 
@@ -76,13 +75,17 @@ void WatermarkSource::checkWatermarkStatus(int64_t now) {
     if (watermarkGenerator_->checkIdle(now)) {
       emitWatermarkStatus(true);
     }
-    scheduleIdleTimer(now);
   }
+
+  scheduleIdleTimer(now);
 
   StatefulOperator::checkWatermarkStatus(now);
 }
 
 void WatermarkSource::scheduleIdleTimer(int64_t now) {
+  if (timerPending_.exchange(true)) {
+    return;
+  }
   if (!scheduler_) {
     scheduler_ = std::make_unique<SystemProcessingTimeScheduler>();
   }
@@ -94,6 +97,7 @@ void WatermarkSource::scheduleIdleTimer(int64_t now) {
 }
 
 void WatermarkSource::onIdleTimerFired(int64_t timestamp) {
+  timerPending_ = false;
   idleCheckRequested_.store(true);
   auto bridge = nativeCallbackBridge();
   if (bridge) {

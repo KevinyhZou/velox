@@ -61,6 +61,7 @@ class WatermarkSource : public StatefulOperator {
   std::unique_ptr<WatermarkGenerator> watermarkGenerator_;
   std::unique_ptr<ProcessingTimeScheduler> scheduler_;
   std::atomic<bool> idleCheckRequested_{false};
+  std::atomic<bool> timerPending_{false};
 };
 
 } // namespace facebook::velox::stateful
