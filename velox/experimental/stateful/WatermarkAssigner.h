@@ -82,12 +82,9 @@ class WatermarkAssigner : public StatefulOperator {
   // first record arrival if idleness detection is enabled.
   std::unique_ptr<ProcessingTimeScheduler> scheduler_;
 
-  // Set by the background timer thread to request an idle check on the driver
-  // thread; drained by checkWatermarkStatus().
-  std::atomic<bool> idleCheckRequested_{false};
-
   // Set to true when a timer is registered, cleared when it fires. Prevents
-  // duplicate timer registrations.
+  // duplicate timer registrations. The true→false transition also signals
+  // checkWatermarkStatus to perform an idle check.
   std::atomic<bool> timerPending_{false};
 };
 

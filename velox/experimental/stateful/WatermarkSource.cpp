@@ -71,10 +71,8 @@ void WatermarkSource::checkWatermarkStatus(int64_t now) {
     return;
   }
 
-  if (idleCheckRequested_.exchange(false)) {
-    if (watermarkGenerator_->checkIdle(now)) {
-      emitWatermarkStatus(true);
-    }
+  if (watermarkGenerator_->checkIdle(now)) {
+    emitWatermarkStatus(true);
   }
 
   scheduleIdleTimer(now);
@@ -98,7 +96,6 @@ void WatermarkSource::scheduleIdleTimer(int64_t now) {
 
 void WatermarkSource::onIdleTimerFired(int64_t timestamp) {
   timerPending_ = false;
-  idleCheckRequested_.store(true);
   auto bridge = nativeCallbackBridge();
   if (bridge) {
     bridge->onProcessingTime(timestamp);

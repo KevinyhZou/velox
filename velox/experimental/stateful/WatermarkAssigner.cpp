@@ -98,10 +98,8 @@ void WatermarkAssigner::checkWatermarkStatus(int64_t now) {
     return;
   }
 
-  if (idleCheckRequested_.exchange(false)) {
-    if (idleTracker_.checkIdle(now)) {
-      emitWatermarkStatus(true);
-    }
+  if (idleTracker_.checkIdle(now)) {
+    emitWatermarkStatus(true);
   }
 
   scheduleIdleTimer(now);
@@ -125,10 +123,7 @@ void WatermarkAssigner::scheduleIdleTimer(int64_t now) {
 }
 
 void WatermarkAssigner::onIdleTimerFired(int64_t timestamp) {
-  // Clear pending flag before signalling so checkWatermarkStatus can
-  // re-register the next timer.
   timerPending_ = false;
-  idleCheckRequested_.store(true);
   auto bridge = nativeCallbackBridge();
   if (bridge) {
     bridge->onProcessingTime(timestamp);
