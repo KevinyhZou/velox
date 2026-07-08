@@ -180,6 +180,7 @@ std::string makePartitionDirectory(
   }
   return (fs::path(tableDirectory) / partitionSubdirectory.value()).string();
 }
+
 } // namespace
 
 std::string FileSystemDataSink::bucketIdForPartition(
@@ -741,11 +742,21 @@ std::vector<std::string> FileSystemDataSink::commit(int64_t checkpointId) {
           fs_->rename(writeFileName, targetFileName);
           writerInfo->setFileRolled(true);
         } catch (const std::exception& e) {
-          VELOX_FAIL(
-              "Failed to rename file {} to target {}, exception: {}",
-              writeFileName,
-              targetFileName,
-              e.what());
+          const auto targetExists = fs_->exists(targetFileName);
+          const auto writeExists = fs_->exists(writeFileName);
+          if (targetExists && !writeExists) {
+            LOG(INFO) << "Treat rename as already completed for file "
+                      << writeFileName << " to target " << targetFileName
+                      << ", targetExists=" << targetExists
+                      << ", exception: " << e.what();
+            writerInfo->setFileRolled(true);
+          } else {
+            VELOX_FAIL(
+                "Failed to rename file {} to target {}, exception: {}",
+                writeFileName,
+                targetFileName,
+                e.what());
+          }
         }
       }
 
