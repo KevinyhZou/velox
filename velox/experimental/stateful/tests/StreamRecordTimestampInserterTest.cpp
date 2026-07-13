@@ -177,8 +177,9 @@ class StreamRecordTimestampInserterTest : public exec::test::OperatorTestBase {
     std::vector<std::optional<Timestamp>> ts;
     ts.reserve(millis.size());
     for (auto m : millis) {
-      ts.push_back(m.has_value() ? std::make_optional(Timestamp::fromMillis(*m))
-                                 : std::nullopt);
+      ts.push_back(
+          m.has_value() ? std::make_optional(Timestamp::fromMillis(*m))
+                        : std::nullopt);
     }
     return makeRowVector({makeNullableFlatVector<Timestamp>(ts, TIMESTAMP())});
   }
@@ -205,8 +206,8 @@ TEST_F(StreamRecordTimestampInserterTest, emitsBatchMaxTimestamp) {
   auto* spyPtr = spy.get();
   auto inserter = makeInserter(std::move(spy), /*rowtimeFieldIndex=*/0);
 
-  inserter->addInput(std::make_shared<StreamRecord>(
-      "input", tsBatch({100, 200, 50, 150})));
+  inserter->addInput(
+      std::make_shared<StreamRecord>("input", tsBatch({100, 200, 50, 150})));
   inserter->advance();
 
   ASSERT_EQ(1, spyPtr->recordSizes().size());
@@ -243,8 +244,7 @@ TEST_F(StreamRecordTimestampInserterTest, handlesSingleRowBatch) {
   auto* spyPtr = spy.get();
   auto inserter = makeInserter(std::move(spy), /*rowtimeFieldIndex=*/0);
 
-  inserter->addInput(
-      std::make_shared<StreamRecord>("input", tsBatch({1234})));
+  inserter->addInput(std::make_shared<StreamRecord>("input", tsBatch({1234})));
   inserter->advance();
 
   ASSERT_EQ(1, spyPtr->recordSizes().size());

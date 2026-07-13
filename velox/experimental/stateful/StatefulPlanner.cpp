@@ -158,9 +158,9 @@ StatefulOperatorPtr StatefulPlanner::transformWatermarkAssignerOperator(
       watermarkAssignerNode->watermarkInterval());
 }
 
-StatefulOperatorPtr StatefulPlanner::
-    transformStreamRecordTimestampInserterOperator(
-        const StatefulPlanNode& planNode) {
+StatefulOperatorPtr
+StatefulPlanner::transformStreamRecordTimestampInserterOperator(
+    const StatefulPlanNode& planNode) {
   std::vector<StatefulOperatorPtr> targets =
       transformStatefulOperators(planNode.targets());
 

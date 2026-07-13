@@ -50,11 +50,12 @@ void StreamRecordTimestampInserter::advance() {
       "Expected single-column timestamp vector from wrapped FilterProject");
   auto child = timestampVector->childAt(0);
   auto tsVector = child->as<SimpleVector<Timestamp>>();
-  VELOX_CHECK_NOT_NULL(tsVector, "Rowtime column is not a SimpleVector<Timestamp>");
+  VELOX_CHECK_NOT_NULL(
+      tsVector, "Rowtime column is not a SimpleVector<Timestamp>");
   const vector_size_t timestampSize = timestampVector->size();
   if (timestampSize == 0) {
-    pushOutput(std::make_shared<StreamRecord>(
-        getPlanNodeId(), std::move(input_)));
+    pushOutput(
+        std::make_shared<StreamRecord>(getPlanNodeId(), std::move(input_)));
     input_.reset();
     return;
   }
