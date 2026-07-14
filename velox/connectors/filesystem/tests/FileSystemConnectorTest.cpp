@@ -368,11 +368,10 @@ TEST_F(FileSystemConnectorTest, testRestoreBucketStateKeepsPartCounter) {
   restoredFsDataSink->restoreState(checkpointRecords);
 
   restoredFsDataSink->appendData(createSingleInputRow());
-  const auto restoredTargetPath =
-      restoredFsDataSink->getWriteInfos()[0]
-          ->writerParameters.targetDirectory() +
-      "/" + restoredFsDataSink->getWriteInfos()[0]
-                ->writerParameters.targetFileName();
+  const auto restoredTargetPath = restoredFsDataSink->getWriteInfos()[0]
+                                      ->writerParameters.targetDirectory() +
+      "/" +
+      restoredFsDataSink->getWriteInfos()[0]->writerParameters.targetFileName();
   ASSERT_NE(checkpointTargetPath, restoredTargetPath);
 
   const std::vector<std::string> committed = restoredFsDataSink->commit(10);

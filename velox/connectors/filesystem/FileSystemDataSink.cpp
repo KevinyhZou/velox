@@ -16,8 +16,8 @@
 
 #include "velox/connectors/filesystem/FileSystemDataSink.h"
 #include <common/compression/Compression.h>
-#include <algorithm>
 #include <folly/json.h>
+#include <algorithm>
 #include "boost/uuid/uuid.hpp"
 #include "boost/uuid/uuid_generators.hpp"
 #include "boost/uuid/uuid_io.hpp"
