@@ -116,6 +116,47 @@ class QueuedOutputOperator : public exec::Operator {
   size_t nextOutput_{0};
 };
 
+class BlockingOutputOperator : public exec::Operator {
+ public:
+  BlockingOutputOperator(exec::DriverCtx* driverCtx, RowVectorPtr firstOutput)
+      : Operator(
+            driverCtx,
+            ROW({"timestamp"}, {BIGINT()}),
+            0,
+            "blocking_output",
+            "BlockingOutput"),
+        firstOutput_(std::move(firstOutput)) {}
+
+  bool needsInput() const override {
+    return false;
+  }
+
+  void addInput(RowVectorPtr) override {}
+
+  RowVectorPtr getOutput() override {
+    if (firstOutput_) {
+      return std::move(firstOutput_);
+    }
+    return nullptr;
+  }
+
+  exec::BlockingReason isBlocked(ContinueFuture* future) override {
+    auto [promise, blockedFuture] = makeVeloxContinuePromiseContract(
+        "WatermarkGeneratorTest.BlockingOutputOperator");
+    promises_.push_back(std::move(promise));
+    *future = std::move(blockedFuture);
+    return exec::BlockingReason::kWaitForConnector;
+  }
+
+  bool isFinished() override {
+    return false;
+  }
+
+ private:
+  RowVectorPtr firstOutput_;
+  std::vector<ContinuePromise> promises_;
+};
+
 class NoOutputOperator : public exec::Operator {
  public:
   explicit NoOutputOperator(exec::DriverCtx* driverCtx)
@@ -167,6 +208,11 @@ class SpyStatefulOperator : public StatefulOperator {
     watermarks_.push_back(timestamp);
   }
 
+  void processWatermarkStatus(bool idle) override {
+    events_.push_back(idle ? "idle" : "active");
+    watermarkStatuses_.push_back(idle);
+  }
+
   size_t numRecords() const {
     return numRecords_;
   }
@@ -179,6 +225,10 @@ class SpyStatefulOperator : public StatefulOperator {
     return events_;
   }
 
+  const std::vector<bool>& watermarkStatuses() const {
+    return watermarkStatuses_;
+  }
+
   const std::vector<vector_size_t>& recordSizes() const {
     return recordSizes_;
   }
@@ -188,6 +238,7 @@ class SpyStatefulOperator : public StatefulOperator {
   std::vector<std::string> events_;
   std::vector<vector_size_t> recordSizes_;
   std::vector<int64_t> watermarks_;
+  std::vector<bool> watermarkStatuses_;
 };
 
 class WatermarkGeneratorTest : public exec::test::OperatorTestBase {
@@ -457,6 +508,113 @@ TEST_F(WatermarkGeneratorTest, watermarkSourceTracksSourceEmpty) {
 
   watermarkSource.advance();
   EXPECT_TRUE(watermarkSource.sourceEmpty());
+}
+
+TEST_F(WatermarkGeneratorTest, watermarkAssignerIdleActiveAndSecondIdle) {
+  auto spy = std::make_unique<SpyStatefulOperator>(driverCtx_.get());
+  auto* spyPtr = spy.get();
+  std::vector<StatefulOperatorPtr> targets;
+  targets.push_back(std::move(spy));
+
+  WatermarkAssigner watermarkAssigner(
+      std::make_unique<TimestampProjectionOperator>(driverCtx_.get()),
+      std::move(targets),
+      100,
+      0,
+      1000);
+
+  watermarkAssigner.addInput(
+      std::make_shared<StreamRecord>("input", batch({1'000})));
+  watermarkAssigner.advance();
+  const auto firstRecordTime = TimeWindowUtil::getCurrentProcessingTime();
+
+  watermarkAssigner.checkWatermarkStatus(firstRecordTime + 99);
+  EXPECT_TRUE(spyPtr->watermarkStatuses().empty());
+
+  watermarkAssigner.checkWatermarkStatus(firstRecordTime + 101);
+  EXPECT_EQ((std::vector<bool>{true}), spyPtr->watermarkStatuses());
+
+  // Already-idle inputs must not re-emit IDLE on later checks.
+  watermarkAssigner.checkWatermarkStatus(10'000);
+  EXPECT_EQ((std::vector<bool>{true}), spyPtr->watermarkStatuses());
+
+  watermarkAssigner.addInput(
+      std::make_shared<StreamRecord>("input", batch({2'000})));
+  watermarkAssigner.advance();
+  const auto secondRecordTime = TimeWindowUtil::getCurrentProcessingTime();
+  EXPECT_EQ((std::vector<bool>{true, false}), spyPtr->watermarkStatuses());
+
+  watermarkAssigner.checkWatermarkStatus(secondRecordTime + 101);
+  EXPECT_EQ(
+      (std::vector<bool>{true, false, true}), spyPtr->watermarkStatuses());
+}
+
+TEST_F(WatermarkGeneratorTest, watermarkSourceIdleActiveAndSecondIdle) {
+  auto spy = std::make_unique<SpyStatefulOperator>(driverCtx_.get());
+  auto* spyPtr = spy.get();
+  std::vector<StatefulOperatorPtr> targets;
+  targets.push_back(std::move(spy));
+
+  WatermarkSource watermarkSource(
+      std::make_unique<QueuedOutputOperator>(
+          driverCtx_.get(),
+          std::vector<RowVectorPtr>{batch({1'000}), batch({2'000})}),
+      std::move(targets),
+      std::make_unique<WatermarkGenerator>(
+          std::make_unique<TimestampProjectionOperator>(driverCtx_.get()),
+          100,
+          0,
+          1000));
+
+  watermarkSource.advance();
+  const auto firstRecordTime = TimeWindowUtil::getCurrentProcessingTime();
+
+  watermarkSource.checkWatermarkStatus(firstRecordTime + 99);
+  EXPECT_TRUE(spyPtr->watermarkStatuses().empty());
+
+  watermarkSource.checkWatermarkStatus(firstRecordTime + 101);
+  EXPECT_EQ((std::vector<bool>{true}), spyPtr->watermarkStatuses());
+
+  // Already-idle sources must not re-emit IDLE on later checks.
+  watermarkSource.checkWatermarkStatus(10'000);
+  EXPECT_EQ((std::vector<bool>{true}), spyPtr->watermarkStatuses());
+
+  watermarkSource.advance();
+  const auto secondRecordTime = TimeWindowUtil::getCurrentProcessingTime();
+  EXPECT_EQ((std::vector<bool>{true, false}), spyPtr->watermarkStatuses());
+
+  watermarkSource.checkWatermarkStatus(secondRecordTime + 101);
+  EXPECT_EQ(
+      (std::vector<bool>{true, false, true}), spyPtr->watermarkStatuses());
+}
+
+TEST_F(WatermarkGeneratorTest, blockedSourceCheckEmitsIdleInSameDrainCycle) {
+  auto spy = std::make_unique<SpyStatefulOperator>(driverCtx_.get());
+  auto* spyPtr = spy.get();
+  std::vector<StatefulOperatorPtr> targets;
+  targets.push_back(std::move(spy));
+
+  WatermarkSource watermarkSource(
+      std::make_unique<BlockingOutputOperator>(
+          driverCtx_.get(), batch({1'000})),
+      std::move(targets),
+      std::make_unique<WatermarkGenerator>(
+          std::make_unique<TimestampProjectionOperator>(driverCtx_.get()),
+          100,
+          0,
+          1000));
+
+  watermarkSource.advance();
+  const auto recordTime = TimeWindowUtil::getCurrentProcessingTime();
+
+  ContinueFuture future = ContinueFuture::makeEmpty();
+  watermarkSource.advanceWithFuture(&future);
+  EXPECT_TRUE(future.valid());
+
+  // Mirrors StatefulTask::next(): after a source blocks, the same drain cycle
+  // gives the operator a chance to emit WatermarkStatus.IDLE.
+  watermarkSource.checkWatermarkStatus(recordTime + 101);
+  EXPECT_EQ((std::vector<bool>{true}), spyPtr->watermarkStatuses());
 }
 
 } // namespace

@@ -33,6 +33,10 @@ class IdleTimerManager {
  public:
   using TimerCallback = std::function<void(int64_t)>;
 
+  explicit IdleTimerManager(
+      std::unique_ptr<ProcessingTimeScheduler> scheduler = nullptr)
+      : scheduler_(std::move(scheduler)) {}
+
   ~IdleTimerManager() {
     shutdown();
   }
