@@ -95,6 +95,10 @@ class WatermarkGenerator {
     return idleTracker_.isIdle();
   }
 
+  int64_t idleDeadline() const {
+    return idleTracker_.idleDeadline();
+  }
+
   bool isIdlenessEnabled() const {
     return idleTracker_.isEnabled();
   }

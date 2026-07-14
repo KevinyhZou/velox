@@ -49,6 +49,8 @@ class WatermarkIdleTracker {
 
   bool isEnabled() const;
 
+  int64_t idleDeadline() const;
+
   void setIdle(bool idle);
 
  private:

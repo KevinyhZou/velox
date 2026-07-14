@@ -145,24 +145,27 @@ StreamElementPtr StatefulTask::next(ContinueFuture* future, int32_t& retCode) {
     // Source is blocked. Give operators a chance to detect idle input and
     // emit WatermarkStatus events into pendings_ before returning.
     checkWatermarkStatus(TimeWindowUtil::getCurrentProcessingTime());
-    return nullptr;
-  }
-  if (pendings_.empty()) {
-    // No output produced. Give operators a chance to detect idle input.
-    checkWatermarkStatus(TimeWindowUtil::getCurrentProcessingTime());
     if (pendings_.empty()) {
-      if (operatorChain_->isFinished()) {
-        operatorChain_->finish();
-        finish();
-        // finish may trigger window flush and generate output.
-        if (pendings_.empty()) {
-          retCode = 1;
+      return nullptr;
+    }
+  } else {
+    if (pendings_.empty()) {
+      // No output produced. Give operators a chance to detect idle input.
+      checkWatermarkStatus(TimeWindowUtil::getCurrentProcessingTime());
+      if (pendings_.empty()) {
+        if (operatorChain_->isFinished()) {
+          operatorChain_->finish();
+          finish();
+          // finish may trigger window flush and generate output.
+          if (pendings_.empty()) {
+            retCode = 1;
+            return nullptr;
+          }
+        } else if (operatorChain_->sourceEmpty()) {
+          return nullptr;
+        } else {
           return nullptr;
         }
-      } else if (operatorChain_->sourceEmpty()) {
-        return nullptr;
-      } else {
-        return nullptr;
       }
     }
   }

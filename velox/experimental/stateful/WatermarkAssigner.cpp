@@ -27,7 +27,6 @@ WatermarkAssigner::WatermarkAssigner(
     const int rowtimeFieldIndex,
     const int64_t watermarkInterval)
     : StatefulOperator(std::move(op), std::move(targets)),
-      idleTimeout_(idleTimeout),
       rowtimeFieldIndex_(rowtimeFieldIndex),
       watermarkInterval_(watermarkInterval),
       idleTracker_(idleTimeout) {}
@@ -109,32 +108,21 @@ void WatermarkAssigner::checkWatermarkStatus(int64_t now) {
 }
 
 void WatermarkAssigner::scheduleIdleTimer(int64_t now) {
-  if (!idleTracker_.isEnabled() || timerPending_.exchange(true)) {
-    return;
-  }
-  if (!scheduler_) {
-    scheduler_ = std::make_unique<SystemProcessingTimeScheduler>();
-  }
-  int64_t fireAt = now + idleTimeout_;
-  scheduler_->registerTimer(
-      fireAt, ProcessingTimerTask(fireAt, [this](int64_t timestamp) {
-        onIdleTimerFired(timestamp);
-      }));
-}
-
-void WatermarkAssigner::onIdleTimerFired(int64_t timestamp) {
-  timerPending_ = false;
-  auto bridge = nativeCallbackBridge();
-  if (bridge) {
-    bridge->onProcessingTime(timestamp);
-  }
+  idleTimerManager_.schedule(
+      now,
+      idleTracker_.isEnabled(),
+      idleTracker_.isIdle(),
+      idleTracker_.idleDeadline(),
+      [this](int64_t timestamp) {
+        auto bridge = nativeCallbackBridge();
+        if (bridge) {
+          bridge->onProcessingTime(timestamp);
+        }
+      });
 }
 
 void WatermarkAssigner::close() {
-  if (scheduler_) {
-    scheduler_->close();
-    scheduler_.reset();
-  }
+  idleTimerManager_.shutdown();
   StatefulOperator::close();
   input_.reset();
 }

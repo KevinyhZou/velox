@@ -59,6 +59,10 @@ bool WatermarkIdleTracker::isEnabled() const {
   return idleTimeout_ > 0;
 }
 
+int64_t WatermarkIdleTracker::idleDeadline() const {
+  return lastRecordWallTime_ + idleTimeout_;
+}
+
 void WatermarkIdleTracker::setIdle(bool idle) {
   idle_ = idle;
 }

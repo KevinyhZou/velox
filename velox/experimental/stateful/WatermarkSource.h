@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 #pragma once
-#include <atomic>
 #include <cstdint>
 #include <memory>
 
-#include "velox/experimental/stateful/ProcessingTimeScheduler.h"
+#include "velox/experimental/stateful/IdleTimerManager.h"
 #include "velox/experimental/stateful/StatefulOperator.h"
 #include "velox/experimental/stateful/WatermarkGenerator.h"
 
@@ -54,13 +53,14 @@ class WatermarkSource : public StatefulOperator {
   }
 
  private:
+  /// Schedules a one-shot idle-detection timer on the background
+  /// processing-time scheduler. When the timer fires it wakes the Java mailbox
+  /// via the native callback bridge so the driver thread can drain any emitted
+  /// WatermarkStatus event.
   void scheduleIdleTimer(int64_t now);
 
-  void onIdleTimerFired(int64_t timestamp);
-
   std::unique_ptr<WatermarkGenerator> watermarkGenerator_;
-  std::unique_ptr<ProcessingTimeScheduler> scheduler_;
-  std::atomic<bool> timerPending_{false};
+  IdleTimerManager idleTimerManager_;
 };
 
 } // namespace facebook::velox::stateful

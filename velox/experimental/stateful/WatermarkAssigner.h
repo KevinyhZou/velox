@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 #pragma once
-#include <atomic>
 #include <cstdint>
 #include <memory>
 
-#include "velox/experimental/stateful/ProcessingTimeScheduler.h"
+#include "velox/experimental/stateful/IdleTimerManager.h"
 #include "velox/experimental/stateful/StatefulOperator.h"
 #include "velox/experimental/stateful/StreamElement.h"
 #include "velox/experimental/stateful/WatermarkIdleTracker.h"
@@ -58,18 +57,13 @@ class WatermarkAssigner : public StatefulOperator {
   }
 
  private:
-  /// Schedules (or reschedules) the one-shot idle-detection timer on the
-  /// background processing-time scheduler. When the timer fires it sets the
-  /// idleCheckRequested_ flag and wakes the Java mailbox via the native
-  /// callback bridge so the driver thread can drain any emitted
+  /// Schedules a one-shot idle-detection timer on the background
+  /// processing-time scheduler. When the timer fires it wakes the Java mailbox
+  /// via the native callback bridge so the driver thread can drain any emitted
   /// WatermarkStatus event.
   void scheduleIdleTimer(int64_t now);
 
-  /// Invoked from the background scheduler thread.
-  void onIdleTimerFired(int64_t timestamp);
-
   RowVectorPtr input_;
-  const int64_t idleTimeout_;
   const int rowtimeFieldIndex_;
   const int64_t watermarkInterval_;
 
@@ -77,14 +71,7 @@ class WatermarkAssigner : public StatefulOperator {
   int64_t lastWatermark = 0;
 
   WatermarkIdleTracker idleTracker_;
-
-  // Background scheduler for idle-detection timers. Lazily created on the
-  // first record arrival if idleness detection is enabled.
-  std::unique_ptr<ProcessingTimeScheduler> scheduler_;
-
-  // Set to true when a timer is registered, cleared when it fires. Prevents
-  // duplicate timer registrations.
-  std::atomic<bool> timerPending_{false};
+  IdleTimerManager idleTimerManager_;
 };
 
 } // namespace facebook::velox::stateful
