@@ -63,6 +63,8 @@ class WatermarkAssigner : public StatefulOperator {
   /// WatermarkStatus event.
   void scheduleIdleTimer(int64_t now);
 
+  void shutdownScheduler();
+
   RowVectorPtr input_;
   const int rowtimeFieldIndex_;
   const int64_t watermarkInterval_;

@@ -59,6 +59,8 @@ class WatermarkSource : public StatefulOperator {
   /// WatermarkStatus event.
   void scheduleIdleTimer(int64_t now);
 
+  void shutdownScheduler();
+
   std::unique_ptr<WatermarkGenerator> watermarkGenerator_;
   IdleTimerManager idleTimerManager_;
 };

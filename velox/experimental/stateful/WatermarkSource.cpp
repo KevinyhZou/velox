@@ -29,7 +29,7 @@ WatermarkSource::WatermarkSource(
 }
 
 WatermarkSource::~WatermarkSource() {
-  WatermarkSource::close();
+  shutdownScheduler();
 }
 
 void WatermarkSource::initialize() {
@@ -94,8 +94,12 @@ void WatermarkSource::scheduleIdleTimer(int64_t now) {
       });
 }
 
-void WatermarkSource::close() {
+void WatermarkSource::shutdownScheduler() {
   idleTimerManager_.shutdown();
+}
+
+void WatermarkSource::close() {
+  shutdownScheduler();
   if (watermarkGenerator_) {
     watermarkGenerator_->close();
     watermarkGenerator_.reset();

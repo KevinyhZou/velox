@@ -32,7 +32,7 @@ WatermarkAssigner::WatermarkAssigner(
       idleTracker_(idleTimeout) {}
 
 WatermarkAssigner::~WatermarkAssigner() {
-  WatermarkAssigner::close();
+  shutdownScheduler();
 }
 
 void WatermarkAssigner::addInput(StreamElementPtr input) {
@@ -121,8 +121,12 @@ void WatermarkAssigner::scheduleIdleTimer(int64_t now) {
       });
 }
 
-void WatermarkAssigner::close() {
+void WatermarkAssigner::shutdownScheduler() {
   idleTimerManager_.shutdown();
+}
+
+void WatermarkAssigner::close() {
+  shutdownScheduler();
   StatefulOperator::close();
   input_.reset();
 }
