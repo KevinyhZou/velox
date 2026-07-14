@@ -115,6 +115,49 @@ class WatermarkAssignerNode : public core::PlanNode {
   const int64_t watermarkInterval_;
 };
 
+/// Plan node for StreamRecordTimestampInserter. Wraps a project that selects
+/// the rowtime column (single-column output) and records the rowtime field
+/// index in the original input row. Used to annotate StreamRecord with the
+/// rowtime without row-column conversion.
+class StreamRecordTimestampInserterNode : public core::PlanNode {
+ public:
+  StreamRecordTimestampInserterNode(
+      const core::PlanNodeId& id,
+      std::shared_ptr<const core::ProjectNode> project,
+      int rowtimeFieldIndex)
+      : PlanNode(id),
+        project_(std::move(project)),
+        rowtimeFieldIndex_(rowtimeFieldIndex) {}
+
+  const RowTypePtr& outputType() const override {
+    return project_->outputType();
+  }
+
+  const std::vector<core::PlanNodePtr>& sources() const override;
+
+  std::string_view name() const override {
+    return "StreamRecordTimestampInserter";
+  }
+
+  folly::dynamic serialize() const override;
+
+  static core::PlanNodePtr create(const folly::dynamic& obj, void* context);
+
+  const std::shared_ptr<const core::ProjectNode>& project() const {
+    return project_;
+  }
+
+  int rowtimeFieldIndex() const {
+    return rowtimeFieldIndex_;
+  }
+
+ private:
+  void addDetails(std::stringstream& stream) const override;
+
+  const std::shared_ptr<const core::ProjectNode> project_;
+  const int rowtimeFieldIndex_;
+};
+
 class WatermarkPushDownSpec : public ISerializable {
  public:
   WatermarkPushDownSpec(
