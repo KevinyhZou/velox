@@ -570,30 +570,9 @@ std::vector<std::string> FileSystemDataSink::snapshotBucketState(
   folly::dynamic state = folly::dynamic::object;
   state["connector"] = "filesystem";
   state["checkpointId"] = checkpointId;
-  state["buckets"] = folly::dynamic::array;
+  // StreamingFileSink stores maxPartCounter in a separate partCounterState.
+  state["partCounter"] = fileNameGenerator_->maxPartCounter();
   state["pendingFiles"] = folly::dynamic::array;
-
-  std::unordered_map<std::string, uint64_t> counters =
-      fileNameGenerator_->partCounters();
-  for (const auto& [_, writerInfos] : checkpointWriterInfo_) {
-    for (const auto& writerInfo : writerInfos) {
-      const auto& writerParams = writerInfo->writerParameters;
-      const auto bucketId = bucketIdForPartition(writerParams.partitionName());
-      counters.try_emplace(bucketId, fileNameGenerator_->partCounter(bucketId));
-    }
-  }
-  for (const auto& writerInfo : pendingWriterInfo_) {
-    const auto& writerParams = writerInfo->writerParameters;
-    const auto bucketId = bucketIdForPartition(writerParams.partitionName());
-    counters.try_emplace(bucketId, fileNameGenerator_->partCounter(bucketId));
-  }
-
-  for (const auto& [bucketId, partCounter] : counters) {
-    folly::dynamic bucket = folly::dynamic::object;
-    bucket["bucketId"] = bucketId;
-    bucket["partCounter"] = partCounter;
-    state["buckets"].push_back(std::move(bucket));
-  }
 
   for (const auto& [pendingCheckpointId, writerInfos] : checkpointWriterInfo_) {
     for (const auto& writerInfo : writerInfos) {
@@ -633,13 +612,19 @@ void FileSystemDataSink::restoreState(
       continue;
     }
 
-    if (state.count("buckets")) {
+    // Prefer StreamingFileSink-style global max partCounter. Fall back to the
+    // legacy per-bucket buckets[].partCounter format by taking the max.
+    if (state.count("partCounter")) {
+      const auto partCounter = state["partCounter"].asInt();
+      VELOX_CHECK_GE(partCounter, 0, "Invalid restored part counter");
+      fileNameGenerator_->restoreMaxPartCounter(
+          static_cast<uint64_t>(partCounter));
+    } else if (state.count("buckets")) {
       for (const auto& bucket : state["buckets"]) {
-        const auto bucketId = bucket["bucketId"].asString();
         const auto partCounter = bucket["partCounter"].asInt();
         VELOX_CHECK_GE(partCounter, 0, "Invalid restored part counter");
-        fileNameGenerator_->restorePartCounter(
-            bucketId, static_cast<uint64_t>(partCounter));
+        fileNameGenerator_->restoreMaxPartCounter(
+            static_cast<uint64_t>(partCounter));
       }
     }
 
@@ -899,10 +884,15 @@ const int64_t FileSystemDataSink::extractTimestampFromPartitionName(
 
 const std::pair<std::string, std::string> FsFileNameGenerator::gen(
     const std::string& bucketId) const {
+  // Initialize this bucket's counter from the global max, matching
+  // StreamingFileSink Buckets#getOrCreateBucketForBucketId.
+  auto [it, inserted] = partCounters_.try_emplace(bucketId, maxPartCounter_);
+  (void)inserted;
+  auto& partCounter = it->second;
+
   std::pair<std::string, std::string> fileNames;
   std::stringstream targetFileName;
   std::stringstream writeFileName;
-  auto& partCounter = partCounters_[bucketId];
   targetFileName << "part-" << prefix_ << "-" << taskId_ << "-" << partCounter
                  << suffix_;
   boost::uuids::random_generator generator;
@@ -912,19 +902,19 @@ const std::pair<std::string, std::string> FsFileNameGenerator::gen(
   fileNames.first = targetFileName.str();
   fileNames.second = writeFileName.str();
   partCounter++;
+  // Keep the global max in sync so inactive buckets reopened later do not
+  // restart from 0 and overwrite committed parts.
+  maxPartCounter_ = std::max(maxPartCounter_, partCounter);
   return fileNames;
 }
 
-uint64_t FsFileNameGenerator::partCounter(const std::string& bucketId) const {
-  const auto it = partCounters_.find(bucketId);
-  return it == partCounters_.end() ? 0 : it->second;
-}
-
-void FsFileNameGenerator::restorePartCounter(
-    const std::string& bucketId,
-    uint64_t partCounter) const {
-  auto& currentCounter = partCounters_[bucketId];
-  currentCounter = std::max(currentCounter, partCounter);
+void FsFileNameGenerator::restoreMaxPartCounter(uint64_t partCounter) const {
+  maxPartCounter_ = std::max(maxPartCounter_, partCounter);
+  // Buckets created after restore start from the restored max, as in
+  // StreamingFileSink Buckets#initializePartCounter / restoreBucket.
+  for (auto& [_, counter] : partCounters_) {
+    counter = std::max(counter, maxPartCounter_);
+  }
 }
 
 } // namespace facebook::velox::connector::filesystem

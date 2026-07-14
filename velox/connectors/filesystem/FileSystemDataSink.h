@@ -108,6 +108,9 @@ struct FsWriterInfo : public hive::HiveWriterInfo {
 
 using FsWriterInfoPtr = std::shared_ptr<FsWriterInfo>;
 
+/// Generates part file names using a StreamingFileSink-style counter model:
+/// each active bucket keeps an in-memory partCounter initialized from the
+/// global maxPartCounter; only maxPartCounter is checkpointed.
 class FsFileNameGenerator {
  public:
   FsFileNameGenerator(
@@ -119,19 +122,23 @@ class FsFileNameGenerator {
   const std::pair<std::string, std::string> gen(
       const std::string& bucketId) const;
 
-  uint64_t partCounter(const std::string& bucketId) const;
-
-  const std::unordered_map<std::string, uint64_t>& partCounters() const {
-    return partCounters_;
+  /// Global max part counter across all buckets (checkpointed like Flink's
+  /// partCounterState).
+  uint64_t maxPartCounter() const {
+    return maxPartCounter_;
   }
 
-  void restorePartCounter(const std::string& bucketId, uint64_t partCounter)
-      const;
+  /// Restores the global max part counter. New/restored buckets start from
+  /// this value so previously committed part files are not overwritten.
+  void restoreMaxPartCounter(uint64_t partCounter) const;
 
  private:
   const std::string prefix_;
   const std::string suffix_;
   const std::string taskId_;
+  /// Max part counter used across all buckets for this sink task.
+  mutable uint64_t maxPartCounter_{0};
+  /// Per-bucket counters for currently active buckets (not checkpointed).
   mutable std::unordered_map<std::string, uint64_t> partCounters_;
 };
 
@@ -240,7 +247,7 @@ class FileSystemDataSink : public DataSink {
   /// Receives event-time watermark in milliseconds.
   void setWatermark(int64_t watermark) override;
 
-  /// Restores bucket counters and pending files from checkpoint records.
+  /// Restores max part counter and pending files from checkpoint records.
   void restoreState(const std::vector<std::string>& checkpointRecords) override;
 
   // For test.
