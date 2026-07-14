@@ -84,11 +84,11 @@ struct FsWriterInfo : public hive::HiveWriterInfo {
     committed_ = committed;
   }
 
-  bool isCommitted() {
+  bool isCommitted() const {
     return committed_;
   }
 
-  bool isFileRolled() {
+  bool isFileRolled() const {
     return fileRolled_;
   }
 
@@ -119,8 +119,8 @@ class FsFileNameGenerator {
       const std::string& taskId)
       : prefix_(prefix), suffix_(suffix), taskId_(taskId) {}
 
-  const std::pair<std::string, std::string> gen(
-      const std::string& bucketId) const;
+  // Stateful: advances per-bucket and global part counters.
+  const std::pair<std::string, std::string> gen(const std::string& bucketId);
 
   /// Global max part counter across all buckets (checkpointed like Flink's
   /// partCounterState).
@@ -130,16 +130,16 @@ class FsFileNameGenerator {
 
   /// Restores the global max part counter. New/restored buckets start from
   /// this value so previously committed part files are not overwritten.
-  void restoreMaxPartCounter(uint64_t partCounter) const;
+  void restoreMaxPartCounter(uint64_t partCounter);
 
  private:
   const std::string prefix_;
   const std::string suffix_;
   const std::string taskId_;
   /// Max part counter used across all buckets for this sink task.
-  mutable uint64_t maxPartCounter_{0};
+  uint64_t maxPartCounter_{0};
   /// Per-bucket counters for currently active buckets (not checkpointed).
-  mutable std::unordered_map<std::string, uint64_t> partCounters_;
+  std::unordered_map<std::string, uint64_t> partCounters_;
 };
 
 class FsPartitionIdGenerator : public hive::PartitionIdGenerator {
@@ -306,7 +306,8 @@ class FileSystemDataSink : public DataSink {
   std::vector<vector_size_t*> rawPartitionRows_;
   std::vector<vector_size_t> partitionSizes_;
   const std::shared_ptr<dwio::common::WriterFactory> writerFactory_;
-  const std::shared_ptr<const FsFileNameGenerator> fileNameGenerator_;
+  // Non-const: file name generation mutates part counters.
+  const std::shared_ptr<FsFileNameGenerator> fileNameGenerator_;
   std::shared_ptr<filesystems::FileSystem> fs_;
   int64_t watermark_{INT64_MIN};
   // Partition creation time in milliseconds (system clock) for process-time
@@ -352,11 +353,12 @@ class FileSystemDataSink : public DataSink {
   // prefix to the target file for write file name. The coordinator (or driver
   // for Presto on spark) will rename the write file to target file to commit
   // the table write when update the metadata store.
+  // Non-const: delegates to stateful FsFileNameGenerator::gen().
   const std::pair<std::string, std::string> getWriterFileNames(
-      const std::string& bucketId) const;
+      const std::string& bucketId);
 
   FsWriterParameters getWriterParameters(
-      const std::optional<std::string>& partition) const;
+      const std::optional<std::string>& partition);
 
   std::string bucketIdForPartition(
       const std::optional<std::string>& partition) const;

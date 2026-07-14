@@ -91,15 +91,11 @@ FileSystemDataSink::FileSystemDataSink(
       dataChannels_(
           getNonPartitionChannels(partitionChannels_, inputType_->size())),
       writerFactory_(dwio::common::getWriterFactory(writeConfig_->getFormat())),
-      fileNameGenerator_(
-          std::make_shared<const FsFileNameGenerator>(
-              queryCtx_->sessionProperties()->get<std::string>(
-                  "query_uuid",
-                  ""),
-              "",
-              queryCtx_->sessionProperties()->get<std::string>(
-                  "task_index",
-                  "0"))) {}
+      fileNameGenerator_(std::make_shared<FsFileNameGenerator>(
+          queryCtx_->sessionProperties()->get<std::string>("query_uuid", ""),
+          "",
+          queryCtx_->sessionProperties()->get<std::string>(
+              "task_index", "0"))) {}
 
 const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
     const std::string& writePath,
@@ -149,7 +145,7 @@ const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
 }
 
 const std::pair<std::string, std::string>
-FileSystemDataSink::getWriterFileNames(const std::string& bucketId) const {
+FileSystemDataSink::getWriterFileNames(const std::string& bucketId) {
   return fileNameGenerator_->gen(bucketId);
 }
 
@@ -181,6 +177,43 @@ std::string makePartitionDirectory(
   return (fs::path(tableDirectory) / partitionSubdirectory.value()).string();
 }
 
+void validatePendingFileState(const folly::dynamic& pendingFile) {
+  VELOX_USER_CHECK(
+      pendingFile.isObject(),
+      "Invalid filesystem checkpoint state: pending file must be an object");
+  const auto requireInt = [&](const char* key) {
+    VELOX_USER_CHECK(
+        pendingFile.count(key) && pendingFile[key].isInt(),
+        "Invalid filesystem checkpoint state: pending file missing int field "
+        "'{}'",
+        key);
+  };
+  const auto requireBool = [&](const char* key) {
+    VELOX_USER_CHECK(
+        pendingFile.count(key) && pendingFile[key].isBool(),
+        "Invalid filesystem checkpoint state: pending file missing bool field "
+        "'{}'",
+        key);
+  };
+  const auto requireString = [&](const char* key) {
+    VELOX_USER_CHECK(
+        pendingFile.count(key) && pendingFile[key].isString(),
+        "Invalid filesystem checkpoint state: pending file missing string "
+        "field '{}'",
+        key);
+  };
+  requireInt("checkpointId");
+  requireBool("hasPartition");
+  requireString("partitionName");
+  requireString("targetFileName");
+  requireString("targetDirectory");
+  requireString("writeFileName");
+  requireString("writeDirectory");
+  requireInt("createTime");
+  requireBool("committed");
+  requireBool("fileRolled");
+}
+
 } // namespace
 
 std::string FileSystemDataSink::bucketIdForPartition(
@@ -189,7 +222,7 @@ std::string FileSystemDataSink::bucketIdForPartition(
 }
 
 FsWriterParameters FileSystemDataSink::getWriterParameters(
-    const std::optional<std::string>& partition) const {
+    const std::optional<std::string>& partition) {
   auto [targetFileName, writeFileName] =
       getWriterFileNames(bucketIdForPartition(partition));
   return FsWriterParameters{
@@ -608,6 +641,7 @@ void FileSystemDataSink::restoreState(
       continue;
     }
     if (!state.isObject() || !state.count("connector") ||
+        !state["connector"].isString() ||
         state["connector"].asString() != "filesystem") {
       continue;
     }
@@ -615,14 +649,25 @@ void FileSystemDataSink::restoreState(
     // Prefer StreamingFileSink-style global max partCounter. Fall back to the
     // legacy per-bucket buckets[].partCounter format by taking the max.
     if (state.count("partCounter")) {
+      VELOX_USER_CHECK(
+          state["partCounter"].isInt(),
+          "Invalid filesystem checkpoint state: partCounter must be an int");
       const auto partCounter = state["partCounter"].asInt();
-      VELOX_CHECK_GE(partCounter, 0, "Invalid restored part counter");
+      VELOX_USER_CHECK_GE(partCounter, 0, "Invalid restored part counter");
       fileNameGenerator_->restoreMaxPartCounter(
           static_cast<uint64_t>(partCounter));
     } else if (state.count("buckets")) {
+      VELOX_USER_CHECK(
+          state["buckets"].isArray(),
+          "Invalid filesystem checkpoint state: buckets must be an array");
       for (const auto& bucket : state["buckets"]) {
+        VELOX_USER_CHECK(
+            bucket.isObject() && bucket.count("partCounter") &&
+                bucket["partCounter"].isInt(),
+            "Invalid filesystem checkpoint state: each bucket must be an "
+            "object with an int partCounter");
         const auto partCounter = bucket["partCounter"].asInt();
-        VELOX_CHECK_GE(partCounter, 0, "Invalid restored part counter");
+        VELOX_USER_CHECK_GE(partCounter, 0, "Invalid restored part counter");
         fileNameGenerator_->restoreMaxPartCounter(
             static_cast<uint64_t>(partCounter));
       }
@@ -631,8 +676,12 @@ void FileSystemDataSink::restoreState(
     if (!state.count("pendingFiles")) {
       continue;
     }
+    VELOX_USER_CHECK(
+        state["pendingFiles"].isArray(),
+        "Invalid filesystem checkpoint state: pendingFiles must be an array");
     int32_t restoredFileIndex = 0;
     for (const auto& pendingFile : state["pendingFiles"]) {
+      validatePendingFileState(pendingFile);
       const auto pendingCheckpointId = pendingFile["checkpointId"].asInt();
       const bool hasPartition = pendingFile["hasPartition"].asBool();
       std::optional<std::string> partitionName = std::nullopt;
@@ -883,7 +932,7 @@ const int64_t FileSystemDataSink::extractTimestampFromPartitionName(
 }
 
 const std::pair<std::string, std::string> FsFileNameGenerator::gen(
-    const std::string& bucketId) const {
+    const std::string& bucketId) {
   // Initialize this bucket's counter from the global max, matching
   // StreamingFileSink Buckets#getOrCreateBucketForBucketId.
   auto [it, inserted] = partCounters_.try_emplace(bucketId, maxPartCounter_);
@@ -908,7 +957,7 @@ const std::pair<std::string, std::string> FsFileNameGenerator::gen(
   return fileNames;
 }
 
-void FsFileNameGenerator::restoreMaxPartCounter(uint64_t partCounter) const {
+void FsFileNameGenerator::restoreMaxPartCounter(uint64_t partCounter) {
   maxPartCounter_ = std::max(maxPartCounter_, partCounter);
   // Buckets created after restore start from the restored max, as in
   // StreamingFileSink Buckets#initializePartCounter / restoreBucket.
