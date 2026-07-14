@@ -95,7 +95,8 @@ FileSystemDataSink::FileSystemDataSink(
           queryCtx_->sessionProperties()->get<std::string>("query_uuid", ""),
           "",
           queryCtx_->sessionProperties()->get<std::string>(
-              "task_index", "0"))) {}
+              "task_index",
+              "0"))) {}
 
 const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
     const std::string& writePath,
