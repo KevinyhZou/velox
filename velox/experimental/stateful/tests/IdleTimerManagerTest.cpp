@@ -50,12 +50,9 @@ TEST(IdleTimerManagerTest, schedulesAtIdleDeadline) {
   IdleTimerManager manager(std::move(scheduler));
 
   std::vector<int64_t> fired;
-  manager.schedule(
-      1'000,
-      true,
-      false,
-      1'100,
-      [&](int64_t timestamp) { fired.push_back(timestamp); });
+  manager.schedule(1'000, true, false, 1'100, [&](int64_t timestamp) {
+    fired.push_back(timestamp);
+  });
 
   EXPECT_EQ((std::vector<int64_t>{1'100}), schedulerPtr->timestamps());
   schedulerPtr->fireLast();
