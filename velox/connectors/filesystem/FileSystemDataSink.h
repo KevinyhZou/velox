@@ -18,6 +18,8 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <string>
+#include <unordered_map>
 #include "boost/algorithm/string.hpp"
 #include "folly/container/F14Map.h"
 #include "velox/common/file/FileSystems.h"
@@ -82,16 +84,20 @@ struct FsWriterInfo : public hive::HiveWriterInfo {
     committed_ = committed;
   }
 
-  bool isCommitted() {
+  bool isCommitted() const {
     return committed_;
   }
 
-  bool isFileRolled() {
+  bool isFileRolled() const {
     return fileRolled_;
   }
 
   void setFileRolled(bool fileRolled) {
     fileRolled_ = fileRolled;
+  }
+
+  time_t createTime() const {
+    return createTime_;
   }
 
  private:
@@ -102,6 +108,9 @@ struct FsWriterInfo : public hive::HiveWriterInfo {
 
 using FsWriterInfoPtr = std::shared_ptr<FsWriterInfo>;
 
+/// Generates part file names using a StreamingFileSink-style counter model:
+/// each active bucket keeps an in-memory partCounter initialized from the
+/// global maxPartCounter; only maxPartCounter is checkpointed.
 class FsFileNameGenerator {
  public:
   FsFileNameGenerator(
@@ -110,13 +119,27 @@ class FsFileNameGenerator {
       const std::string& taskId)
       : prefix_(prefix), suffix_(suffix), taskId_(taskId) {}
 
-  const std::pair<std::string, std::string> gen() const;
+  // Stateful: advances per-bucket and global part counters.
+  const std::pair<std::string, std::string> gen(const std::string& bucketId);
+
+  /// Global max part counter across all buckets (checkpointed like Flink's
+  /// partCounterState).
+  uint64_t maxPartCounter() const {
+    return maxPartCounter_;
+  }
+
+  /// Restores the global max part counter. New/restored buckets start from
+  /// this value so previously committed part files are not overwritten.
+  void restoreMaxPartCounter(uint64_t partCounter);
 
  private:
   const std::string prefix_;
   const std::string suffix_;
   const std::string taskId_;
-  mutable uint64_t partCounter_ = 0;
+  /// Max part counter used across all buckets for this sink task.
+  uint64_t maxPartCounter_{0};
+  /// Per-bucket counters for currently active buckets (not checkpointed).
+  std::unordered_map<std::string, uint64_t> partCounters_;
 };
 
 class FsPartitionIdGenerator : public hive::PartitionIdGenerator {
@@ -224,6 +247,9 @@ class FileSystemDataSink : public DataSink {
   /// Receives event-time watermark in milliseconds.
   void setWatermark(int64_t watermark) override;
 
+  /// Restores max part counter and pending files from checkpoint records.
+  void restoreState(const std::vector<std::string>& checkpointRecords) override;
+
   // For test.
   const std::vector<FsWriterInfoPtr>& getWriteInfos() {
     return writerInfo_;
@@ -280,7 +306,8 @@ class FileSystemDataSink : public DataSink {
   std::vector<vector_size_t*> rawPartitionRows_;
   std::vector<vector_size_t> partitionSizes_;
   const std::shared_ptr<dwio::common::WriterFactory> writerFactory_;
-  const std::shared_ptr<const FsFileNameGenerator> fileNameGenerator_;
+  // Non-const: file name generation mutates part counters.
+  const std::shared_ptr<FsFileNameGenerator> fileNameGenerator_;
   std::shared_ptr<filesystems::FileSystem> fs_;
   int64_t watermark_{INT64_MIN};
   // Partition creation time in milliseconds (system clock) for process-time
@@ -326,10 +353,17 @@ class FileSystemDataSink : public DataSink {
   // prefix to the target file for write file name. The coordinator (or driver
   // for Presto on spark) will rename the write file to target file to commit
   // the table write when update the metadata store.
-  const std::pair<std::string, std::string> getWriterFileNames() const;
+  // Non-const: delegates to stateful FsFileNameGenerator::gen().
+  const std::pair<std::string, std::string> getWriterFileNames(
+      const std::string& bucketId);
 
   FsWriterParameters getWriterParameters(
+      const std::optional<std::string>& partition);
+
+  std::string bucketIdForPartition(
       const std::optional<std::string>& partition) const;
+
+  std::vector<std::string> snapshotBucketState(int64_t checkpointId) const;
 
   // Get the HiveWriter corresponding to the row from partitionIds.
   FOLLY_ALWAYS_INLINE FsWriterId getWriterId(size_t row) const;

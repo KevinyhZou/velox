@@ -333,6 +333,95 @@ TEST_F(
   fs->remove(postBarrierTargetPath);
 }
 
+TEST_F(FileSystemConnectorTest, testRestoreBucketStateKeepsPartCounter) {
+  std::shared_ptr<connector::Connector> fsConnector =
+      getConnector(fileSystemConnectorId);
+  auto queryCtx = createQueryCtx();
+  std::unique_ptr<DataSink> dataSink = fsConnector->createDataSink(
+      inputType,
+      createFsTableHandle({}, {}),
+      queryCtx.get(),
+      CommitStrategy::kNoCommit);
+  auto* fsDataSink = reinterpret_cast<FileSystemDataSink*>(dataSink.get());
+  ASSERT_TRUE(fsDataSink != nullptr);
+
+  fsDataSink->appendData(createSingleInputRow());
+  const auto checkpointTargetPath =
+      fsDataSink->getWriteInfos()[0]->writerParameters.targetDirectory() + "/" +
+      fsDataSink->getWriteInfos()[0]->writerParameters.targetFileName();
+  const std::vector<std::string> checkpointRecords = fsDataSink->snapshot(10);
+  ASSERT_EQ(checkpointRecords.size(), 1);
+  // StreamingFileSink-style state: global max partCounter, not per-bucket map.
+  ASSERT_NE(checkpointRecords[0].find("\"partCounter\""), std::string::npos);
+  ASSERT_EQ(checkpointRecords[0].find("\"buckets\""), std::string::npos);
+  dataSink.reset();
+
+  auto restoredQueryCtx = createQueryCtx();
+  std::unique_ptr<DataSink> restoredDataSink = fsConnector->createDataSink(
+      inputType,
+      createFsTableHandle({}, {}),
+      restoredQueryCtx.get(),
+      CommitStrategy::kNoCommit);
+  auto* restoredFsDataSink =
+      reinterpret_cast<FileSystemDataSink*>(restoredDataSink.get());
+  ASSERT_TRUE(restoredFsDataSink != nullptr);
+  restoredFsDataSink->restoreState(checkpointRecords);
+
+  restoredFsDataSink->appendData(createSingleInputRow());
+  const auto restoredTargetPath = restoredFsDataSink->getWriteInfos()[0]
+                                      ->writerParameters.targetDirectory() +
+      "/" +
+      restoredFsDataSink->getWriteInfos()[0]->writerParameters.targetFileName();
+  ASSERT_NE(checkpointTargetPath, restoredTargetPath);
+
+  const std::vector<std::string> committed = restoredFsDataSink->commit(10);
+  ASSERT_EQ(committed.size(), 1);
+  ASSERT_EQ(committed[0], checkpointTargetPath);
+
+  auto fs =
+      filesystems::getFileSystem(dataPath, fsConnector->connectorConfig());
+  ASSERT_TRUE(fs->exists(checkpointTargetPath));
+  fs->remove(checkpointTargetPath);
+
+  restoredFsDataSink->snapshot(11);
+  const std::vector<std::string> committed2 = restoredFsDataSink->commit(11);
+  ASSERT_EQ(committed2.size(), 1);
+  ASSERT_EQ(committed2[0], restoredTargetPath);
+  ASSERT_TRUE(fs->exists(restoredTargetPath));
+  fs->remove(restoredTargetPath);
+}
+
+TEST_F(FileSystemConnectorTest, testRestoreLegacyPerBucketPartCounterState) {
+  std::shared_ptr<connector::Connector> fsConnector =
+      getConnector(fileSystemConnectorId);
+  auto restoredQueryCtx = createQueryCtx();
+  std::unique_ptr<DataSink> restoredDataSink = fsConnector->createDataSink(
+      inputType,
+      createFsTableHandle({}, {}),
+      restoredQueryCtx.get(),
+      CommitStrategy::kNoCommit);
+  auto* restoredFsDataSink =
+      reinterpret_cast<FileSystemDataSink*>(restoredDataSink.get());
+  ASSERT_TRUE(restoredFsDataSink != nullptr);
+
+  // Legacy state format with per-bucket counters; restore should take the max.
+  const std::string legacyState = R"({
+    "connector":"filesystem",
+    "checkpointId":1,
+    "buckets":[
+      {"bucketId":"","partCounter":3},
+      {"bucketId":"p=0","partCounter":5}
+    ],
+    "pendingFiles":[]
+  })";
+  restoredFsDataSink->restoreState({legacyState});
+  restoredFsDataSink->appendData(createSingleInputRow());
+  const auto targetFileName =
+      restoredFsDataSink->getWriteInfos()[0]->writerParameters.targetFileName();
+  // After restoring max=5, the next part file must use counter 5.
+  ASSERT_NE(targetFileName.find("-5"), std::string::npos);
+}
+
 TEST_F(FileSystemConnectorTest, testNonPartitionedFileCommit) {
   std::shared_ptr<connector::Connector> fsConnector =
       getConnector(fileSystemConnectorId);
