@@ -30,6 +30,7 @@ namespace facebook::velox::connector::kafka {
 namespace {
 constexpr const char* kTaskIndex = "task_index";
 constexpr const char* kTaskParallelism = "parallelism";
+constexpr uint32_t kPollTimeoutBackoffMillis = 1;
 
 uint32_t javaStringHashCode(const std::string& value) {
   uint32_t hash = 0;
@@ -58,6 +59,7 @@ KafkaDataSource::KafkaDataSource(
       config_(config),
       outputType_(outputType),
       batchSize_(config_->getDataBatchSize()) {
+  scheduler_.start();
   VELOX_CHECK(batchSize_ > 0, "Batch size config value must greater than 0.");
   const std::shared_ptr<KafkaTableHandle> kafkaTableHandle =
       std::dynamic_pointer_cast<KafkaTableHandle>(tableHandle);
@@ -78,6 +80,11 @@ KafkaDataSource::KafkaDataSource(
   }
   createCachedQueue(batchSize_);
   createRecordDeserializer(config_->getFormat(), outputType_);
+}
+
+KafkaDataSource::~KafkaDataSource() {
+  scheduler_.shutdown();
+  completeBlockingFuture();
 }
 
 bool KafkaDataSource::consumerCanbeCreated() {
@@ -230,9 +237,29 @@ void KafkaDataSource::applyTaskScopedClientId() {
         fmt::format("{}-{}", config_->getClientId(), taskIndex)}});
 }
 
+void KafkaDataSource::completeBlockingFuture() {
+  if (blockingPromise_.has_value()) {
+    blockingPromise_->setValue();
+    blockingPromise_.reset();
+  }
+}
+
+std::optional<RowVectorPtr> KafkaDataSource::blockOnPollTimeout(
+    velox::ContinueFuture& future) {
+  auto [promise, blockedFuture] =
+      makeVeloxContinuePromiseContract("KafkaDataSource::next");
+  blockingPromise_ = std::move(promise);
+  scheduler_.addFunctionOnce(
+      [this]() { completeBlockingFuture(); },
+      fmt::format("KafkaDataSource::next.{}", ++blockingSequence_),
+      std::chrono::milliseconds(kPollTimeoutBackoffMillis));
+  future = std::move(blockedFuture);
+  return std::nullopt;
+}
+
 std::optional<RowVectorPtr> KafkaDataSource::next(
     uint64_t,
-    velox::ContinueFuture&) {
+    velox::ContinueFuture& future) {
   std::optional<RowVectorPtr> res;
   size_t consumedMsgBytes = 0;
   if (queue_.empty()) {
@@ -242,7 +269,7 @@ std::optional<RowVectorPtr> KafkaDataSource::next(
     consumePos_ = 0;
     // If nothing consumed, return directly.
     if (consumedMsgBytes == 0) {
-      return res;
+      return blockOnPollTimeout(future);
     }
   }
   outRow_->prepareForReuse();

@@ -27,7 +27,9 @@ std::shared_ptr<NativeCallbackBridge> StatefulOperator::nativeCallbackBridge()
     const {
   auto task =
       std::dynamic_pointer_cast<StatefulTask>(operator_->operatorCtx()->task());
-  VELOX_CHECK(task, "Current task is not a StatefulTask");
+  if (!task) {
+    return nullptr;
+  }
   return task->nativeCallbackBridge();
 }
 
@@ -208,6 +210,12 @@ void StatefulOperator::processWatermarkStatus(bool idle, int32_t index) {
 
 void StatefulOperator::processWatermarkStatus(bool idle) {
   processWatermarkStatus(idle, 0);
+}
+
+void StatefulOperator::checkWatermarkStatus(int64_t now) {
+  for (auto& target : targets_) {
+    target->checkWatermarkStatus(now);
+  }
 }
 
 void StatefulOperator::initializeStateBackend(StateBackend* stateBackend) {

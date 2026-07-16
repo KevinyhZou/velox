@@ -16,7 +16,9 @@
 #pragma once
 
 #include <cppkafka/cppkafka.h>
+#include <folly/experimental/FunctionScheduler.h>
 #include <map>
+#include <optional>
 #include "velox/common/base/RuntimeMetrics.h"
 #include "velox/common/future/VeloxPromise.h"
 #include "velox/connectors/Connector.h"
@@ -41,6 +43,8 @@ class KafkaDataSource : public DataSource {
       const TableHandlePtr& tableHandle,
       const ConnectorQueryCtx* connectorQueryCtx,
       const ConnectionConfigPtr& connectionConfig);
+
+  ~KafkaDataSource() override;
 
   /// Create a kafka connection to the given topics and partitions.
   void addSplit(ConnectorSplitPtr split) override;
@@ -98,6 +102,9 @@ class KafkaDataSource : public DataSource {
   KafkaConsumerPtr consumer_;
   /// The kafka record deserializer.
   KafkaRecordDeserializerPtr deserializer_;
+  folly::FunctionScheduler scheduler_;
+  std::optional<ContinuePromise> blockingPromise_;
+  uint64_t blockingSequence_{0};
   /// Count how many rows consumed.
   uint64_t completedRows_ = 0;
   /// Count how many bytes consumed.
@@ -151,6 +158,10 @@ class KafkaDataSource : public DataSource {
   void applyTaskScopedClientId();
 
   void applyRestoredOffsets(cppkafka::TopicPartitionList& topicPartitions);
+
+  void completeBlockingFuture();
+
+  std::optional<RowVectorPtr> blockOnPollTimeout(velox::ContinueFuture& future);
 
   bool hasOffsetsToCommit(const TopicPartitionOffsets& offsets) const;
 

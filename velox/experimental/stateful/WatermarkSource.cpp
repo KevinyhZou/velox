@@ -15,6 +15,8 @@
  */
 #include "velox/experimental/stateful/WatermarkSource.h"
 
+#include "velox/experimental/stateful/window/TimeWindowUtil.h"
+
 namespace facebook::velox::stateful {
 
 WatermarkSource::WatermarkSource(
@@ -24,6 +26,10 @@ WatermarkSource::WatermarkSource(
     : StatefulOperator(std::move(op), std::move(targets)),
       watermarkGenerator_(std::move(watermarkGenerator)) {
   VELOX_CHECK_NOT_NULL(watermarkGenerator_);
+}
+
+WatermarkSource::~WatermarkSource() {
+  shutdownScheduler();
 }
 
 void WatermarkSource::initialize() {
@@ -50,9 +56,50 @@ void WatermarkSource::advance() {
   if (watermark.has_value()) {
     emitWatermark(watermark.value());
   }
+
+  if (watermarkGenerator_->isIdlenessEnabled()) {
+    int64_t now = TimeWindowUtil::getCurrentProcessingTime();
+    if (watermarkGenerator_->onRecord(now)) {
+      emitWatermarkStatus(false);
+    }
+  }
+}
+
+void WatermarkSource::checkWatermarkStatus(int64_t now) {
+  if (!watermarkGenerator_->isIdlenessEnabled()) {
+    StatefulOperator::checkWatermarkStatus(now);
+    return;
+  }
+
+  if (watermarkGenerator_->checkIdle(now)) {
+    emitWatermarkStatus(true);
+  }
+
+  scheduleIdleTimer(now);
+
+  StatefulOperator::checkWatermarkStatus(now);
+}
+
+void WatermarkSource::scheduleIdleTimer(int64_t now) {
+  idleTimerManager_.schedule(
+      now,
+      watermarkGenerator_->isIdlenessEnabled(),
+      watermarkGenerator_->isIdle(),
+      watermarkGenerator_->idleDeadline(),
+      [this](int64_t timestamp) {
+        auto bridge = nativeCallbackBridge();
+        if (bridge) {
+          bridge->onProcessingTime(timestamp);
+        }
+      });
+}
+
+void WatermarkSource::shutdownScheduler() {
+  idleTimerManager_.shutdown();
 }
 
 void WatermarkSource::close() {
+  shutdownScheduler();
   if (watermarkGenerator_) {
     watermarkGenerator_->close();
     watermarkGenerator_.reset();

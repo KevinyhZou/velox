@@ -15,16 +15,21 @@
  */
 #pragma once
 #include <cstdint>
+#include <memory>
 
+#include "velox/experimental/stateful/IdleTimerManager.h"
 #include "velox/experimental/stateful/StatefulOperator.h"
 #include "velox/experimental/stateful/StreamElement.h"
+#include "velox/experimental/stateful/WatermarkIdleTracker.h"
 
 namespace facebook::velox::stateful {
 
 /// It is related to
 /// org.apache.flink.table.runtime.operators.wmassigners.WatermarkAssignerOperator
 /// in Flink. It extracts timestamp from each row and generates periodic
-/// watermark.
+/// watermark. When an idle timeout is configured, it also detects idle input
+/// and emits WatermarkStatus.IDLE / ACTIVE downstream, mirroring Flink's
+/// WatermarkAssignerOperator idleness semantics.
 class WatermarkAssigner : public StatefulOperator {
  public:
   WatermarkAssigner(
@@ -34,23 +39,41 @@ class WatermarkAssigner : public StatefulOperator {
       const int rowtimeFieldIndex,
       const int64_t watermarkInterval);
 
+  ~WatermarkAssigner() override;
+
   void addInput(StreamElementPtr input) override;
 
   void advance() override;
+
+  void close() override;
+
+  /// Invoked by the driver thread (via StatefulTask::next) after each drain
+  /// attempt. Performs the idle check and emits WatermarkStatus if the input
+  /// has just transitioned to idle.
+  void checkWatermarkStatus(int64_t now) override;
 
   std::string name() const override {
     return "WatermarkAssigner";
   }
 
-  void close() override;
-
  private:
+  /// Schedules a one-shot idle-detection timer on the background
+  /// processing-time scheduler. When the timer fires it wakes the Java mailbox
+  /// via the native callback bridge so the driver thread can drain any emitted
+  /// WatermarkStatus event.
+  void scheduleIdleTimer(int64_t now);
+
+  void shutdownScheduler();
+
   RowVectorPtr input_;
-  const int64_t idleTimeout_;
   const int rowtimeFieldIndex_;
   const int64_t watermarkInterval_;
 
   int64_t currentWatermark = 0;
   int64_t lastWatermark = 0;
+
+  WatermarkIdleTracker idleTracker_;
+  IdleTimerManager idleTimerManager_;
 };
+
 } // namespace facebook::velox::stateful

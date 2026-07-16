@@ -16,6 +16,7 @@
 #include "velox/experimental/stateful/WatermarkAssigner.h"
 
 #include "velox/experimental/stateful/WatermarkGenerator.h"
+#include "velox/experimental/stateful/window/TimeWindowUtil.h"
 
 namespace facebook::velox::stateful {
 
@@ -26,14 +27,26 @@ WatermarkAssigner::WatermarkAssigner(
     const int rowtimeFieldIndex,
     const int64_t watermarkInterval)
     : StatefulOperator(std::move(op), std::move(targets)),
-      idleTimeout_(idleTimeout),
       rowtimeFieldIndex_(rowtimeFieldIndex),
-      watermarkInterval_(watermarkInterval) {}
+      watermarkInterval_(watermarkInterval),
+      idleTracker_(idleTimeout) {}
+
+WatermarkAssigner::~WatermarkAssigner() {
+  shutdownScheduler();
+}
 
 void WatermarkAssigner::addInput(StreamElementPtr input) {
   auto record = std::static_pointer_cast<StreamRecord>(input);
   input_ = record->record();
   op()->addInput(input_);
+
+  if (idleTracker_.isEnabled()) {
+    int64_t now = TimeWindowUtil::getCurrentProcessingTime();
+    if (idleTracker_.onRecord(now)) {
+      // Was idle; emit WatermarkStatus.ACTIVE downstream.
+      emitWatermarkStatus(false);
+    }
+  }
 }
 
 void WatermarkAssigner::advance() {
@@ -78,7 +91,42 @@ void WatermarkAssigner::advance() {
   input_.reset();
 }
 
+void WatermarkAssigner::checkWatermarkStatus(int64_t now) {
+  if (!idleTracker_.isEnabled()) {
+    StatefulOperator::checkWatermarkStatus(now);
+    return;
+  }
+
+  if (idleTracker_.checkIdle(now)) {
+    emitWatermarkStatus(true);
+  }
+
+  scheduleIdleTimer(now);
+
+  // Forward to downstream targets.
+  StatefulOperator::checkWatermarkStatus(now);
+}
+
+void WatermarkAssigner::scheduleIdleTimer(int64_t now) {
+  idleTimerManager_.schedule(
+      now,
+      idleTracker_.isEnabled(),
+      idleTracker_.isIdle(),
+      idleTracker_.idleDeadline(),
+      [this](int64_t timestamp) {
+        auto bridge = nativeCallbackBridge();
+        if (bridge) {
+          bridge->onProcessingTime(timestamp);
+        }
+      });
+}
+
+void WatermarkAssigner::shutdownScheduler() {
+  idleTimerManager_.shutdown();
+}
+
 void WatermarkAssigner::close() {
+  shutdownScheduler();
   StatefulOperator::close();
   input_.reset();
 }
