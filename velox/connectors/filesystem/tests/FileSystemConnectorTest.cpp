@@ -215,10 +215,13 @@ TEST_F(FileSystemConnectorTest, testWriteNonPartitionedTable) {
       writerParams.writeDirectory() + "/" + writerParams.writeFileName();
   const std::string targetFilePath =
       writerParams.targetDirectory() + "/" + writerParams.targetFileName();
+  const std::vector<std::string> committed = snapshotAndCommit(fsDataSink, 0);
+  ASSERT_EQ(committed.size(), 1);
+  ASSERT_EQ(committed[0], targetFilePath);
   auto fs_ =
       filesystems::getFileSystem(writeFilePath, fsConnector->connectorConfig());
   ASSERT_TRUE(fs_ != nullptr);
-  fs_->rename(writeFilePath, targetFilePath);
+  ASSERT_FALSE(fs_->exists(writeFilePath));
   ASSERT_TRUE(fs_->exists(targetFilePath));
   std::string localFilePath = targetFilePath.substr(7, targetFilePath.size());
   std::ifstream localFile(localFilePath);
@@ -286,6 +289,7 @@ TEST_F(FileSystemConnectorTest, testWritePartitionedTable) {
         writerParams.writeDirectory() ==
         dataPath + "/" + partitionName.value());
   }
+  fsDataSink->abort();
 }
 
 TEST_F(
@@ -420,6 +424,7 @@ TEST_F(FileSystemConnectorTest, testRestoreLegacyPerBucketPartCounterState) {
       restoredFsDataSink->getWriteInfos()[0]->writerParameters.targetFileName();
   // After restoring max=5, the next part file must use counter 5.
   ASSERT_NE(targetFileName.find("-5"), std::string::npos);
+  restoredFsDataSink->abort();
 }
 
 TEST_F(FileSystemConnectorTest, testNonPartitionedFileCommit) {
@@ -597,6 +602,7 @@ TEST_F(FileSystemConnectorTest, testFileRolling) {
   fsDataSink->appendData(inputData1);
   ASSERT_TRUE(fsDataSink->getWriteInfos().size() == 2);
   ASSERT_TRUE(fsDataSink->getPendingWriterInfosSize() == 2);
+  fsDataSink->abort();
 }
 
 TEST_F(FileSystemConnectorTest, testFileCommit) {
