@@ -442,11 +442,11 @@ void FileSystemDataSink::splitInputRowsAndEnsureWriters() {
 
   std::fill(partitionSizes_.begin(), partitionSizes_.end(), 0);
 
-  const auto numRows = isPartitioned() ? partitionIds_.size() : 0;
+  const auto partitionIdsSize = isPartitioned() ? partitionIds_.size() : 0;
   std::vector<uint32_t> partitionToWriterIndex(
       partitionIdGenerator_->numPartitions(),
       std::numeric_limits<uint32_t>::max());
-  for (auto row = 0; row < numRows; ++row) {
+  for (auto row = 0; row < partitionIdsSize; ++row) {
     const auto partitionId = partitionIds_[row];
     VELOX_CHECK_LT(partitionId, partitionToWriterIndex.size());
 
@@ -460,8 +460,8 @@ void FileSystemDataSink::splitInputRowsAndEnsureWriters() {
     VELOX_DCHECK_EQ(partitionSizes_.size(), partitionRows_.size());
     VELOX_DCHECK_EQ(partitionRows_.size(), rawPartitionRows_.size());
     if (FOLLY_UNLIKELY(partitionRows_[index] == nullptr) ||
-        (partitionRows_[index]->capacity() < numRows * sizeof(vector_size_t))) {
-      partitionRows_[index] = allocateIndices(numRows, queryCtx_->memoryPool());
+        (partitionRows_[index]->capacity() < partitionIdsSize * sizeof(vector_size_t))) {
+      partitionRows_[index] = allocateIndices(partitionIdsSize, queryCtx_->memoryPool());
       rawPartitionRows_[index] =
           partitionRows_[index]->asMutable<vector_size_t>();
     }
