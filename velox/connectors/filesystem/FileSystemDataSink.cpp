@@ -122,7 +122,8 @@ const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
     if (auto* parquetOptions =
             dynamic_cast<parquet::WriterOptions*>(options.get())) {
       if (!parquetOptions->codecOptions) {
-        parquetOptions->codecOptions = std::make_shared<parquet::CodecOptions>(3);
+        parquetOptions->codecOptions =
+            std::make_shared<parquet::CodecOptions>(3);
       }
     }
   }
@@ -460,8 +461,10 @@ void FileSystemDataSink::splitInputRowsAndEnsureWriters() {
     VELOX_DCHECK_EQ(partitionSizes_.size(), partitionRows_.size());
     VELOX_DCHECK_EQ(partitionRows_.size(), rawPartitionRows_.size());
     if (FOLLY_UNLIKELY(partitionRows_[index] == nullptr) ||
-        (partitionRows_[index]->capacity() < partitionIdsSize * sizeof(vector_size_t))) {
-      partitionRows_[index] = allocateIndices(partitionIdsSize, queryCtx_->memoryPool());
+        (partitionRows_[index]->capacity() <
+         partitionIdsSize * sizeof(vector_size_t))) {
+      partitionRows_[index] =
+          allocateIndices(partitionIdsSize, queryCtx_->memoryPool());
       rawPartitionRows_[index] =
           partitionRows_[index]->asMutable<vector_size_t>();
     }
