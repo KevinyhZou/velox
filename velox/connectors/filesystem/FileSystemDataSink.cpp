@@ -25,6 +25,7 @@
 #include "velox/dwio/catalog/fbhive/FileUtils.h"
 #include "velox/dwio/common/FileSink.h"
 #include "velox/dwio/common/Options.h"
+#include "velox/dwio/parquet/writer/Writer.h"
 #include "velox/exec/OperatorUtils.h"
 
 namespace facebook::velox::connector::filesystem {
@@ -115,6 +116,15 @@ const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
 
   if (!options->compressionKind) {
     options->compressionKind = writeConfig_->getFileCompressionType();
+  }
+
+  if (options->compressionKind == common::CompressionKind_ZSTD) {
+    if (auto* parquetOptions =
+            dynamic_cast<parquet::WriterOptions*>(options.get())) {
+      if (!parquetOptions->codecOptions) {
+        parquetOptions->codecOptions = std::make_shared<parquet::CodecOptions>(3);
+      }
+    }
   }
 
   if (options->nonReclaimableSection == nullptr) {
@@ -433,9 +443,18 @@ void FileSystemDataSink::splitInputRowsAndEnsureWriters() {
   std::fill(partitionSizes_.begin(), partitionSizes_.end(), 0);
 
   const auto numRows = isPartitioned() ? partitionIds_.size() : 0;
+  std::vector<uint32_t> partitionToWriterIndex(
+      partitionIdGenerator_->numPartitions(),
+      std::numeric_limits<uint32_t>::max());
   for (auto row = 0; row < numRows; ++row) {
-    const auto id = getWriterId(row);
-    const uint32_t index = ensureWriter(id);
+    const auto partitionId = partitionIds_[row];
+    VELOX_CHECK_LT(partitionId, partitionToWriterIndex.size());
+
+    auto& index = partitionToWriterIndex[partitionId];
+    if (index == std::numeric_limits<uint32_t>::max()) {
+      VELOX_CHECK_LT(partitionId, std::numeric_limits<uint32_t>::max());
+      index = ensureWriter(FsWriterId{static_cast<uint32_t>(partitionId)});
+    }
 
     VELOX_DCHECK_LT(index, partitionSizes_.size());
     VELOX_DCHECK_EQ(partitionSizes_.size(), partitionRows_.size());
@@ -474,6 +493,21 @@ void FileSystemDataSink::appendData(RowVectorPtr input) {
   // Lazy load all the input columns.
   for (column_index_t i = 0; i < input->childrenSize(); ++i) {
     input->childAt(i)->loadedVector();
+  }
+  if (!partitionIds_.empty()) {
+    const auto firstPartitionId = partitionIds_[0];
+    bool singlePartition = true;
+    for (vector_size_t row = 1; row < partitionIds_.size(); ++row) {
+      if (partitionIds_[row] != firstPartitionId) {
+        singlePartition = false;
+        break;
+      }
+    }
+    if (singlePartition) {
+      const auto index = ensureWriter(getWriterId(0));
+      write(index, input);
+      return;
+    }
   }
   // All inputs belong to a single non-bucketed partition. The partition id
   // must be zero.

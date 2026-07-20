@@ -79,7 +79,7 @@ class FileSystemWriteConfig {
   const std::string getPartitionTimeExtractPattern();
   const common::CompressionKind getFileCompressionType();
   const bool flushOnWrite() {
-    return true;
+    return false;
   }
   const bool exists(const std::string& configKey) {
     return config_ && config_->valueExists(configKey);
