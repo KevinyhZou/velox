@@ -265,6 +265,9 @@ std::optional<RowVectorPtr> KafkaDataSource::next(
   if (queue_.empty()) {
     // consume the data batch from kafka, and stored the consumed data in the
     // queue.
+    VELOX_CHECK_NOT_NULL(
+        consumer_.get(),
+        "Failed to consume kafka messages as the consumer is null.");
     consumer_->consumeBatch(queue_, consumedMsgBytes);
     consumePos_ = 0;
     // If nothing consumed, return directly.
