@@ -176,7 +176,9 @@ const common::CompressionKind FileSystemWriteConfig::getFileCompressionType() {
   VELOX_USER_CHECK(
       compressionKind == common::CompressionKind_SNAPPY ||
           compressionKind == common::CompressionKind_LZ4 ||
-          compressionKind == common::CompressionKind_ZSTD,
+          compressionKind == common::CompressionKind_ZSTD ||
+          compressionKind == common::CompressionKind_GZIP ||
+          compressionKind == common::CompressionKind_ZLIB,
       "Unsupported parquet compression codec '{}'. Supported values are none, snappy, lz4 and zstd.",
       compression);
   return compressionKind;
