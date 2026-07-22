@@ -48,10 +48,14 @@ class FileSystemWriteConfig {
   static constexpr const char* kPartitionTimeExtractPattern =
       "partition.time-extractor.timestamp-pattern";
   static constexpr const char* kFileCompression = "sink.file.compression";
+  static constexpr const char* kFlushOnWrite = "sink.flush-on-write";
   static constexpr const char* kParquetCompressionCodec =
       "parquet.compression-codec";
+  static constexpr const char* kZstdCompressionLevel =
+      "sink.zstd-compression-level";
   /// The default value of max partitions per writer.
   static constexpr const int32_t defaultMaxPartitionsPerWriter = 65535;
+  static constexpr const int32_t defaultZstdCompressionLevel = 3;
   /// The supported file format to write
   const std::unordered_map<std::string, dwio::common::FileFormat>
       supportedFileFormats = {
@@ -78,9 +82,8 @@ class FileSystemWriteConfig {
   const int32_t getPartitionCommitDelayMillis();
   const std::string getPartitionTimeExtractPattern();
   const common::CompressionKind getFileCompressionType();
-  const bool flushOnWrite() {
-    return false;
-  }
+  const int32_t getZstdCompressionLevel();
+  const bool flushOnWrite();
   const bool exists(const std::string& configKey) {
     return config_ && config_->valueExists(configKey);
   }

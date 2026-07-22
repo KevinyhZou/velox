@@ -122,8 +122,8 @@ const std::unique_ptr<dwio::common::Writer> FileSystemDataSink::createWriter(
     if (auto* parquetOptions =
             dynamic_cast<parquet::WriterOptions*>(options.get())) {
       if (!parquetOptions->codecOptions) {
-        parquetOptions->codecOptions =
-            std::make_shared<parquet::CodecOptions>(3);
+        parquetOptions->codecOptions = std::make_shared<parquet::CodecOptions>(
+            writeConfig_->getZstdCompressionLevel());
       }
     }
   }
@@ -481,37 +481,30 @@ void FileSystemDataSink::splitInputRowsAndEnsureWriters() {
   }
 }
 
-void FileSystemDataSink::appendData(RowVectorPtr input) {
-  checkRunning();
-  // Write to unpartitioned table.
-  if (!isPartitioned()) {
-    const FsWriterId writerId{0};
-    const auto index = ensureWriter(writerId);
+std::optional<uint32_t> FileSystemDataSink::singlePartitionIdInCurrentBatch()
+    const {
+  if (partitionIds_.empty()) {
+    return std::nullopt;
+  }
+
+  const auto firstPartitionId = partitionIds_[0];
+  for (vector_size_t row = 1; row < partitionIds_.size(); ++row) {
+    if (partitionIds_[row] != firstPartitionId) {
+      return std::nullopt;
+    }
+  }
+
+  VELOX_CHECK_LT(firstPartitionId, std::numeric_limits<uint32_t>::max());
+  return static_cast<uint32_t>(firstPartitionId);
+}
+
+void FileSystemDataSink::writePartitionedInput(RowVectorPtr input) {
+  if (const auto partitionId = singlePartitionIdInCurrentBatch()) {
+    const auto index = ensureWriter(FsWriterId{*partitionId});
     write(index, input);
     return;
   }
-  // Compute partition numbers.
-  computePartitionIds(input);
 
-  // Lazy load all the input columns.
-  for (column_index_t i = 0; i < input->childrenSize(); ++i) {
-    input->childAt(i)->loadedVector();
-  }
-  if (!partitionIds_.empty()) {
-    const auto firstPartitionId = partitionIds_[0];
-    bool singlePartition = true;
-    for (vector_size_t row = 1; row < partitionIds_.size(); ++row) {
-      if (partitionIds_[row] != firstPartitionId) {
-        singlePartition = false;
-        break;
-      }
-    }
-    if (singlePartition) {
-      const auto index = ensureWriter(getWriterId(0));
-      write(index, input);
-      return;
-    }
-  }
   // All inputs belong to a single non-bucketed partition. The partition id
   // must be zero.
   if (partitionIdGenerator_->numPartitions() == 1) {
@@ -519,6 +512,7 @@ void FileSystemDataSink::appendData(RowVectorPtr input) {
     write(index, input);
     return;
   }
+
   splitInputRowsAndEnsureWriters();
   for (auto index = 0; index < writers_.size(); ++index) {
     const vector_size_t partitionSize = partitionSizes_[index];
@@ -531,6 +525,27 @@ void FileSystemDataSink::appendData(RowVectorPtr input) {
         : exec::wrap(partitionSize, partitionRows_[index], input);
     write(index, writerInput);
   }
+}
+
+void FileSystemDataSink::appendData(RowVectorPtr input) {
+  checkRunning();
+  // Write to unpartitioned table.
+  if (!isPartitioned()) {
+    const FsWriterId writerId{0};
+    const auto index = ensureWriter(writerId);
+    write(index, input);
+    return;
+  }
+
+  // Compute partition numbers.
+  computePartitionIds(input);
+
+  // Lazy load all the input columns.
+  for (column_index_t i = 0; i < input->childrenSize(); ++i) {
+    input->childAt(i)->loadedVector();
+  }
+
+  writePartitionedInput(input);
 }
 
 void FileSystemDataSink::setState(State newState) {

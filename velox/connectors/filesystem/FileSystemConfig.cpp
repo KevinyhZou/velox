@@ -155,6 +155,15 @@ const std::string FileSystemWriteConfig::getPartitionTimeExtractPattern() {
       kPartitionTimeExtractPattern, "");
 }
 
+const bool FileSystemWriteConfig::flushOnWrite() {
+  return checkAndGetConfigValue<bool, false>(kFlushOnWrite, false);
+}
+
+const int32_t FileSystemWriteConfig::getZstdCompressionLevel() {
+  return checkAndGetConfigValue<int32_t, false>(
+      kZstdCompressionLevel, defaultZstdCompressionLevel);
+}
+
 const common::CompressionKind FileSystemWriteConfig::getFileCompressionType() {
   std::string compression = checkAndGetConfigValue<std::string, false>(
       kParquetCompressionCodec,

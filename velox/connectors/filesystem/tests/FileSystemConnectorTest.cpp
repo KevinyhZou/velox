@@ -77,6 +77,10 @@ TEST_F(FileSystemConnectorTest, testWriteConfigDefaults) {
   ASSERT_EQ(writeConfig->getPartitionTimeExtractPattern(), "");
   ASSERT_EQ(
       writeConfig->getFileCompressionType(), common::CompressionKind_NONE);
+  ASSERT_EQ(
+      writeConfig->getZstdCompressionLevel(),
+      FileSystemWriteConfig::defaultZstdCompressionLevel);
+  ASSERT_FALSE(writeConfig->flushOnWrite());
 }
 
 TEST_F(FileSystemConnectorTest, testWriteConfigValues) {
@@ -89,7 +93,9 @@ TEST_F(FileSystemConnectorTest, testWriteConfigValues) {
       {FileSystemWriteConfig::kPartitionCommitPolicy, "success-file"},
       {FileSystemWriteConfig::kPartitionCommitDelay, "3 sec"},
       {FileSystemWriteConfig::kPartitionTimeExtractPattern, "$dt $hour:00:00"},
+      {FileSystemWriteConfig::kFlushOnWrite, "true"},
       {FileSystemWriteConfig::kParquetCompressionCodec, "snappy"},
+      {FileSystemWriteConfig::kZstdCompressionLevel, "7"},
   });
 
   ASSERT_EQ(writeConfig->getPath(), "file:///tmp/filesystem_sink");
@@ -100,6 +106,8 @@ TEST_F(FileSystemConnectorTest, testWriteConfigValues) {
   ASSERT_EQ(writeConfig->getPartitionCommitPolicy(), "success-file");
   ASSERT_EQ(writeConfig->getPartitionCommitDelayMillis(), 3'000);
   ASSERT_EQ(writeConfig->getPartitionTimeExtractPattern(), "$dt $hour:00:00");
+  ASSERT_TRUE(writeConfig->flushOnWrite());
+  ASSERT_EQ(writeConfig->getZstdCompressionLevel(), 7);
   ASSERT_EQ(
       writeConfig->getFileCompressionType(), common::CompressionKind_SNAPPY);
 }
@@ -177,10 +185,10 @@ TEST_F(FileSystemConnectorTest, testWriteConfigInvalidValues) {
       makeWriteConfig(
           {
               {FileSystemWriteConfig::kFormat, "parquet"},
-              {FileSystemWriteConfig::kParquetCompressionCodec, "gzip"},
+              {FileSystemWriteConfig::kParquetCompressionCodec, "brotli"},
           })
           ->getFileCompressionType(),
-      "Unsupported parquet compression codec 'gzip'");
+      "Not support compression kind brotli");
   VELOX_ASSERT_THROW(
       makeWriteConfig(
           {
