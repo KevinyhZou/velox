@@ -186,9 +186,8 @@ const common::CompressionKind FileSystemWriteConfig::getFileCompressionType() {
       compressionKind == common::CompressionKind_SNAPPY ||
           compressionKind == common::CompressionKind_LZ4 ||
           compressionKind == common::CompressionKind_ZSTD ||
-          compressionKind == common::CompressionKind_GZIP ||
-          compressionKind == common::CompressionKind_ZLIB,
-      "Unsupported parquet compression codec '{}'. Supported values are none, snappy, lz4 and zstd.",
+          compressionKind == common::CompressionKind_GZIP,
+      "Unsupported parquet compression codec '{}'. Supported values are none, snappy, lz4, gzip and zstd.",
       compression);
   return compressionKind;
 }
