@@ -155,6 +155,15 @@ const std::string FileSystemWriteConfig::getPartitionTimeExtractPattern() {
       kPartitionTimeExtractPattern, "");
 }
 
+const bool FileSystemWriteConfig::flushOnWrite() {
+  return checkAndGetConfigValue<bool, false>(kFlushOnWrite, false);
+}
+
+const int32_t FileSystemWriteConfig::getZstdCompressionLevel() {
+  return checkAndGetConfigValue<int32_t, false>(
+      kZstdCompressionLevel, defaultZstdCompressionLevel);
+}
+
 const common::CompressionKind FileSystemWriteConfig::getFileCompressionType() {
   std::string compression = checkAndGetConfigValue<std::string, false>(
       kParquetCompressionCodec,
@@ -176,8 +185,9 @@ const common::CompressionKind FileSystemWriteConfig::getFileCompressionType() {
   VELOX_USER_CHECK(
       compressionKind == common::CompressionKind_SNAPPY ||
           compressionKind == common::CompressionKind_LZ4 ||
-          compressionKind == common::CompressionKind_ZSTD,
-      "Unsupported parquet compression codec '{}'. Supported values are none, snappy, lz4 and zstd.",
+          compressionKind == common::CompressionKind_ZSTD ||
+          compressionKind == common::CompressionKind_GZIP,
+      "Unsupported parquet compression codec '{}'. Supported values are none, snappy, lz4, gzip and zstd.",
       compression);
   return compressionKind;
 }
