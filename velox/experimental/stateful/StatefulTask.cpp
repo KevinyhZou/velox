@@ -256,7 +256,8 @@ void StatefulTask::finish(bool throwException) {
         pendings_.size(),
         operatorChain_ ? operatorChain_->detail() : "<null operator chain>");
   } else {
-    LOG(ERROR) << "Outputs have {} not been consumed before finishing the task. {}",
+    LOG(ERROR)
+        << "Outputs have {} not been consumed before finishing the task. {}",
         pendings_.size(),
         operatorChain_ ? operatorChain_->detail() : "<null operator chain>";
   }

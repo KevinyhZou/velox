@@ -57,7 +57,7 @@ const void KafkaStreamJSONRecordDeserializer::deserialize(
     deserializer_->deserialize(value, index, vec);
   } catch (const std::exception& e) {
     LOG(WARNING) << "Failed to deserialize record: " << message
-                << " , error: " << e.what();
+                 << " , error: " << e.what();
   }
 }
 

@@ -103,10 +103,10 @@ PulsarConsumer::~PulsarConsumer() {
   try {
     close();
   } catch (const std::exception& e) {
-    LOG(ERROR) << "Failed to close Pulsar consumer in destructor: "
-               << e.what();
+    LOG(ERROR) << "Failed to close Pulsar consumer in destructor: " << e.what();
   } catch (...) {
-    LOG(ERROR) << "Failed to close Pulsar consumer in destructor: unknown error";
+    LOG(ERROR)
+        << "Failed to close Pulsar consumer in destructor: unknown error";
   }
 }
 
