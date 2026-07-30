@@ -47,6 +47,7 @@ TEST(PulsarConnectorTest, connectionConfigRequiredValues) {
   }));
 
   EXPECT_EQ(config.getServiceUrl(), "pulsar://localhost:6650");
+  EXPECT_EQ(config.getAdminUrl(), "http://localhost:8080");
   EXPECT_EQ(config.getTopic(), "persistent://public/default/topic-partition-2");
   EXPECT_EQ(config.getSubscriptionName(), "sub");
   EXPECT_EQ(config.getFormat(), "json");
@@ -66,6 +67,7 @@ TEST(PulsarConnectorTest, connectionConfigRequiredValues) {
 TEST(PulsarConnectorTest, connectionConfigOverrides) {
   ConnectionConfig config(makeConfig({
       {ConnectionConfig::kServiceUrl, "pulsar://localhost:6650"},
+      {ConnectionConfig::kAdminUrl, "http://localhost:18080"},
       {ConnectionConfig::kTopic, "topic"},
       {ConnectionConfig::kSubscriptionName, "sub"},
       {ConnectionConfig::kConsumerName, "consumer"},
@@ -82,6 +84,7 @@ TEST(PulsarConnectorTest, connectionConfigOverrides) {
       {ConnectionConfig::kAuthTokenFile, "/tmp/token"},
   }));
 
+  EXPECT_EQ(config.getAdminUrl(), "http://localhost:18080");
   EXPECT_EQ(config.getConsumerName(), "consumer");
   EXPECT_EQ(config.getSubscriptionType(), "key-shared");
   EXPECT_EQ(config.getInitialPosition(), "earliest");
@@ -108,6 +111,7 @@ TEST(PulsarConnectorTest, missingRequiredConfigFails) {
 TEST(PulsarConnectorTest, invalidBooleanConfigFails) {
   ConnectionConfig acknowledgeConfig(makeConfig({
       {ConnectionConfig::kServiceUrl, "pulsar://localhost:6650"},
+      {ConnectionConfig::kAdminUrl, "http://localhost:18080"},
       {ConnectionConfig::kTopic, "topic"},
       {ConnectionConfig::kSubscriptionName, "sub"},
       {ConnectionConfig::kFormat, "raw"},
@@ -120,6 +124,7 @@ TEST(PulsarConnectorTest, invalidBooleanConfigFails) {
 
   ConnectionConfig checkpointConfig(makeConfig({
       {ConnectionConfig::kServiceUrl, "pulsar://localhost:6650"},
+      {ConnectionConfig::kAdminUrl, "http://localhost:18080"},
       {ConnectionConfig::kTopic, "topic"},
       {ConnectionConfig::kSubscriptionName, "sub"},
       {ConnectionConfig::kFormat, "raw"},
@@ -134,6 +139,7 @@ TEST(PulsarConnectorTest, invalidBooleanConfigFails) {
 TEST(PulsarConnectorTest, consumerConfigurationOverrides) {
   ConnectionConfig sharedConfig(makeConfig({
       {ConnectionConfig::kServiceUrl, "pulsar://localhost:6650"},
+      {ConnectionConfig::kAdminUrl, "http://localhost:18080"},
       {ConnectionConfig::kTopic, "topic"},
       {ConnectionConfig::kSubscriptionName, "sub"},
       {ConnectionConfig::kConsumerName, "consumer"},
@@ -159,6 +165,7 @@ TEST(PulsarConnectorTest, consumerConfigurationOverrides) {
 
   ConnectionConfig failoverConfig(makeConfig({
       {ConnectionConfig::kServiceUrl, "pulsar://localhost:6650"},
+      {ConnectionConfig::kAdminUrl, "http://localhost:18080"},
       {ConnectionConfig::kTopic, "topic"},
       {ConnectionConfig::kSubscriptionName, "sub"},
       {ConnectionConfig::kFormat, "raw"},
@@ -174,6 +181,7 @@ TEST(PulsarConnectorTest, consumerConfigurationOverrides) {
 
   ConnectionConfig keySharedConfig(makeConfig({
       {ConnectionConfig::kServiceUrl, "pulsar://localhost:6650"},
+      {ConnectionConfig::kAdminUrl, "http://localhost:18080"},
       {ConnectionConfig::kTopic, "topic"},
       {ConnectionConfig::kSubscriptionName, "sub"},
       {ConnectionConfig::kFormat, "raw"},
@@ -188,6 +196,7 @@ TEST(PulsarConnectorTest, consumerConfigurationOverrides) {
 TEST(PulsarConnectorTest, invalidConsumerConfigurationFails) {
   ConnectionConfig subscriptionTypeConfig(makeConfig({
       {ConnectionConfig::kServiceUrl, "pulsar://localhost:6650"},
+      {ConnectionConfig::kAdminUrl, "http://localhost:18080"},
       {ConnectionConfig::kTopic, "topic"},
       {ConnectionConfig::kSubscriptionName, "sub"},
       {ConnectionConfig::kFormat, "raw"},
@@ -200,6 +209,7 @@ TEST(PulsarConnectorTest, invalidConsumerConfigurationFails) {
 
   ConnectionConfig initialPositionConfig(makeConfig({
       {ConnectionConfig::kServiceUrl, "pulsar://localhost:6650"},
+      {ConnectionConfig::kAdminUrl, "http://localhost:18080"},
       {ConnectionConfig::kTopic, "topic"},
       {ConnectionConfig::kSubscriptionName, "sub"},
       {ConnectionConfig::kFormat, "raw"},
@@ -221,6 +231,7 @@ TEST(PulsarConnectorTest, tokenFileClientConfiguration) {
 
   ConnectionConfig config(makeConfig({
       {ConnectionConfig::kServiceUrl, "pulsar://localhost:6650"},
+      {ConnectionConfig::kAdminUrl, "http://localhost:18080"},
       {ConnectionConfig::kTopic, "topic"},
       {ConnectionConfig::kSubscriptionName, "sub"},
       {ConnectionConfig::kFormat, "raw"},
@@ -241,6 +252,7 @@ TEST(PulsarConnectorTest, tokenFileClientConfiguration) {
 TEST(PulsarConnectorTest, missingTokenFileFails) {
   ConnectionConfig config(makeConfig({
       {ConnectionConfig::kServiceUrl, "pulsar://localhost:6650"},
+      {ConnectionConfig::kAdminUrl, "http://localhost:18080"},
       {ConnectionConfig::kTopic, "topic"},
       {ConnectionConfig::kSubscriptionName, "sub"},
       {ConnectionConfig::kFormat, "raw"},

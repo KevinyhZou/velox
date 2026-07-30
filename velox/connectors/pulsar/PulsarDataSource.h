@@ -102,8 +102,6 @@ class PulsarDataSource : public DataSource {
 
   bool consumerCanbeCreated() const;
   void createConsumerForPartitions();
-  std::optional<std::string> getCurrentTopicPartitionPosition(
-      const TopicPartitionOffset& topicPartitionOffset) const;
   void resetSplitState();
   bool cumulativeAck() const;
   void completeBlockingFuture();

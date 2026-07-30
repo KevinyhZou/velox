@@ -318,6 +318,59 @@ TEST(PulsarConnectorIntegrationTest, checkpointModeAcksOnCommit) {
   ASSERT_EQ(stats.at("pulsarAcknowledgedMessages").value, 2);
 }
 
+TEST(PulsarConnectorIntegrationTest, resumesFromCommittedSubscriptionCursor) {
+  const auto serviceUrl =
+      getEnvOrDefault("PULSAR_SERVICE_URL", "pulsar://127.0.0.1:6650");
+  const auto topic = fmt::format(
+      "persistent://public/default/velox-pulsar-resume-cursor-it-{}",
+      getpid());
+  const auto subscription =
+      fmt::format("velox-resume-cursor-sub-{}", getpid());
+  const auto connectorId = "test-pulsar-resume-cursor";
+  auto pool = memory::memoryManager()->addLeafPool();
+
+  connector::registerConnectorFactory(
+      std::make_shared<connector::pulsar::PulsarConnectorFactory>());
+  ConnectorCleanup cleanup(connectorId);
+
+  auto connectorConfig = makeRawConfig(
+      serviceUrl,
+      topic,
+      subscription,
+      "1000",
+      "2",
+      "individual",
+      "raw",
+      "true");
+
+  std::vector<::pulsar::MessageId> messageIds;
+  produceRawMessages(
+      serviceUrl, topic, messageIds, {"first", "second", "third"});
+  ASSERT_EQ(messageIds.size(), 3);
+
+  auto source = createRawDataSource(
+      pool, connectorConfig, connectorId, serviceUrl, topic, subscription);
+  auto resultVector = readNextResult(source.get());
+  ASSERT_TRUE(resultVector.has_value());
+  ASSERT_NE(resultVector.value(), nullptr);
+  ASSERT_EQ(resultVector.value()->size(), 2);
+
+  const auto checkpointState = source->snapshotState(1);
+  ASSERT_EQ(checkpointState.size(), 1);
+  ASSERT_EQ(source->commit(1), checkpointState);
+  source.reset();
+
+  auto resumedSource = createRawDataSource(
+      pool, connectorConfig, connectorId, serviceUrl, topic, subscription);
+  resultVector = readNextResult(resumedSource.get());
+  ASSERT_TRUE(resultVector.has_value());
+  ASSERT_NE(resultVector.value(), nullptr);
+  ASSERT_EQ(resultVector.value()->size(), 1);
+  auto payloads =
+      resultVector.value()->childAt(0)->as<FlatVector<StringView>>();
+  ASSERT_EQ(payloads->valueAt(0).str(), "third");
+}
+
 TEST(PulsarConnectorIntegrationTest, jsonMessagesFromStandalone) {
   const auto serviceUrl =
       getEnvOrDefault("PULSAR_SERVICE_URL", "pulsar://127.0.0.1:6650");

@@ -15,12 +15,16 @@
  */
 
 #include "velox/connectors/pulsar/PulsarDataSource.h"
+#include <curl/curl.h>
 #include <fmt/format.h>
 #include <folly/Conv.h>
+#include <folly/FileUtil.h>
+#include <folly/ScopeGuard.h>
+#include <folly/String.h>
 #include <folly/json.h>
 #include <glog/logging.h>
-#include <pulsar/ReaderConfiguration.h>
 #include <algorithm>
+#include <cctype>
 #include <limits>
 #include "velox/common/base/RuntimeMetrics.h"
 #include "velox/connectors/kafka/format/CSVRecordDeserializer.h"
@@ -38,6 +42,197 @@ namespace {
 constexpr const char* kTaskIndex = "task_index";
 constexpr const char* kTaskParallelism = "parallelism";
 constexpr uint32_t kReceiveTimeoutBackoffMillis = 1;
+
+size_t writeCurlResponse(
+    char* contents,
+    size_t size,
+    size_t nmemb,
+    void* userp) {
+  const auto bytes = size * nmemb;
+  auto* response = static_cast<std::string*>(userp);
+  response->append(contents, bytes);
+  return bytes;
+}
+
+std::string trimTrailingSlash(std::string value) {
+  while (!value.empty() && value.back() == '/') {
+    value.pop_back();
+  }
+  return value;
+}
+
+std::string urlEncode(CURL* curl, const std::string& value) {
+  char* encoded = curl_easy_escape(
+      curl, value.c_str(), static_cast<int>(value.size()));
+  VELOX_CHECK_NOT_NULL(
+      encoded, "Failed to URL encode Pulsar admin path segment.");
+  std::string result(encoded);
+  curl_free(encoded);
+  return result;
+}
+
+std::string getResolvedAuthToken(const ConnectionConfig& config) {
+  auto token = config.getAuthToken();
+  if (token.empty() && !config.getAuthTokenFile().empty()) {
+    VELOX_CHECK(
+        folly::readFile(config.getAuthTokenFile().c_str(), token),
+        "Failed to read Pulsar token file: {}",
+        config.getAuthTokenFile());
+    token = folly::trimWhitespace(token).str();
+  }
+  return token;
+}
+
+std::vector<std::string> parseTopicForAdminPath(const std::string& topic) {
+  const auto schemeEnd = topic.find("://");
+  VELOX_CHECK(
+      schemeEnd != std::string::npos,
+      "Invalid Pulsar topic {}. Expected persistent://tenant/namespace/topic.",
+      topic);
+  const auto domain = topic.substr(0, schemeEnd);
+  VELOX_CHECK(
+      domain == "persistent" || domain == "non-persistent",
+      "Unsupported Pulsar topic domain {} in topic {}.",
+      domain,
+      topic);
+  const auto rest = topic.substr(schemeEnd + 3);
+  std::vector<std::string> parts;
+  folly::split('/', rest, parts);
+  VELOX_CHECK_GE(
+      parts.size(),
+      3,
+      "Invalid Pulsar topic {}. Expected persistent://tenant/namespace/topic.",
+      topic);
+  std::string localName = parts[2];
+  for (size_t i = 3; i < parts.size(); ++i) {
+    localName += "/" + parts[i];
+  }
+  return {domain, parts[0], parts[1], localName};
+}
+
+bool isNonNegativeMessagePosition(const std::string& messageId) {
+  std::vector<std::string> parts;
+  folly::split(':', messageId, parts);
+  if (parts.size() < 2) {
+    return false;
+  }
+  try {
+    return folly::to<int64_t>(parts[0]) >= 0 &&
+        folly::to<int64_t>(parts[1]) >= 0;
+  } catch (const std::exception&) {
+    return false;
+  }
+}
+
+std::optional<std::string> getCommittedSubscriptionCursor(
+    const ConnectionConfig& config,
+    const std::string& partitionedTopic) {
+  const auto adminUrl = trimTrailingSlash(config.getAdminUrl());
+  VELOX_CHECK(!adminUrl.empty(), "Pulsar admin URL is empty.");
+
+  curl_global_init(CURL_GLOBAL_DEFAULT);
+  std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> curl(
+      curl_easy_init(), curl_easy_cleanup);
+  VELOX_CHECK_NOT_NULL(curl.get(), "Failed to initialize CURL.");
+
+  const auto topicParts = parseTopicForAdminPath(partitionedTopic);
+  const auto url = fmt::format(
+      "{}/admin/v2/{}/{}/{}/{}/internalStats?metadata=false",
+      adminUrl,
+      urlEncode(curl.get(), topicParts[0]),
+      urlEncode(curl.get(), topicParts[1]),
+      urlEncode(curl.get(), topicParts[2]),
+      urlEncode(curl.get(), topicParts[3]));
+
+  std::string response;
+  curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+  curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, writeCurlResponse);
+  curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &response);
+  curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
+  curl_easy_setopt(curl.get(), CURLOPT_NOSIGNAL, 1L);
+  curl_easy_setopt(
+      curl.get(),
+      CURLOPT_TIMEOUT_MS,
+      static_cast<long>(config.getReceiveTimeoutMills()));
+
+  struct curl_slist* headers = nullptr;
+  const auto token = getResolvedAuthToken(config);
+  if (!token.empty()) {
+    headers = curl_slist_append(
+        headers, fmt::format("Authorization: Bearer {}", token).c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers);
+  }
+
+  const auto cleanupHeaders = folly::makeGuard([&]() {
+    if (headers != nullptr) {
+      curl_slist_free_all(headers);
+    }
+  });
+
+  const auto result = curl_easy_perform(curl.get());
+  VELOX_CHECK(
+      result == CURLE_OK,
+      "Failed to query Pulsar subscription cursor from {}: {}",
+      url,
+      curl_easy_strerror(result));
+
+  long responseCode = 0;
+  curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &responseCode);
+  if (responseCode == 404) {
+    LOG(INFO) << fmt::format(
+        "No Pulsar subscription cursor found for topic {} subscription {}. Using initial position {}.",
+        partitionedTopic,
+        config.getSubscriptionName(),
+        config.getInitialPosition());
+    return std::nullopt;
+  }
+  VELOX_CHECK(
+      responseCode >= 200 && responseCode < 300,
+      "Failed to query Pulsar subscription cursor from {}. HTTP status {}, body: {}",
+      url,
+      responseCode,
+      response);
+
+  folly::dynamic obj;
+  try {
+    obj = folly::parseJson(response);
+  } catch (const std::exception& e) {
+    VELOX_FAIL(
+        "Failed to parse Pulsar internal stats response from {}: {}",
+        url,
+        e.what());
+  }
+  if (!obj.isObject() || !obj.count("cursors") || !obj["cursors"].isObject()) {
+    return std::nullopt;
+  }
+  const auto& cursors = obj["cursors"];
+  const auto subscriptionName = config.getSubscriptionName();
+  if (!cursors.count(subscriptionName) ||
+      !cursors[subscriptionName].isObject()) {
+    LOG(INFO) << fmt::format(
+        "No Pulsar cursor found for topic {} subscription {}. Using initial position {}.",
+        partitionedTopic,
+        subscriptionName,
+        config.getInitialPosition());
+    return std::nullopt;
+  }
+  const auto& cursor = cursors[subscriptionName];
+  if (!cursor.count("markDeletePosition") ||
+      !cursor["markDeletePosition"].isString()) {
+    return std::nullopt;
+  }
+  const auto markDeletePosition = cursor["markDeletePosition"].asString();
+  if (!isNonNegativeMessagePosition(markDeletePosition)) {
+    LOG(INFO) << fmt::format(
+        "Pulsar cursor for topic {} subscription {} has no committed message position: {}. Using initial position {}.",
+        partitionedTopic,
+        subscriptionName,
+        markDeletePosition,
+        config.getInitialPosition());
+    return std::nullopt;
+  }
+  return markDeletePosition;
+}
 
 uint32_t javaStringHashCode(const std::string& value) {
   uint32_t hash = 0;
@@ -67,15 +262,6 @@ int32_t partitionIndexFromTopicName(
     return -1;
   }
   return folly::to<int32_t>(topic.substr(prefix.size()));
-}
-
-std::string messageIdString(const ::pulsar::MessageId& messageId) {
-  return fmt::format(
-      "{}:{}:{}:{}",
-      messageId.ledgerId(),
-      messageId.entryId(),
-      messageId.batchIndex(),
-      messageId.partition());
 }
 
 } // namespace
@@ -135,18 +321,19 @@ void PulsarDataSource::createConsumerForPartitions() {
        topicPartitionOffsets_) {
     TopicPartitionOffset resolvedTopicPartitionOffset = topicPartitionOffset;
     if (resolvedTopicPartitionOffset.messageId.empty()) {
-      const auto currentPosition =
-          getCurrentTopicPartitionPosition(resolvedTopicPartitionOffset);
-      if (currentPosition.has_value()) {
-        resolvedTopicPartitionOffset.messageId = currentPosition.value();
+      const auto committedCursor = getCommittedSubscriptionCursor(
+          *config_, resolvedTopicPartitionOffset.partitionedTopic);
+      if (committedCursor.has_value()) {
+        resolvedTopicPartitionOffset.messageId = committedCursor.value();
         resolvedTopicPartitionOffset.startMessageIdInclusive = false;
       }
     }
     LOG(INFO) << fmt::format(
-        "Creating Pulsar consumer for partitioned topic {}, start offset {}",
+        "Creating Pulsar consumer for partitioned topic {}, subscription {}, start offset {}",
         resolvedTopicPartitionOffset.partitionedTopic,
+        config_->getSubscriptionName(),
         resolvedTopicPartitionOffset.messageId.empty()
-            ? "<subscription-initial-position>"
+            ? fmt::format("<initial-position:{}>", config_->getInitialPosition())
             : resolvedTopicPartitionOffset.messageId);
     resolvedTopicPartitionOffsets.push_back(resolvedTopicPartitionOffset);
     resolvedTopicPartitionOffsetMap.insert_or_assign(
@@ -158,41 +345,6 @@ void PulsarDataSource::createConsumerForPartitions() {
   consumer_ = std::make_shared<PulsarConsumer>(
       config_,
       std::move(resolvedTopicPartitionOffsets));
-}
-
-std::optional<std::string> PulsarDataSource::getCurrentTopicPartitionPosition(
-    const TopicPartitionOffset& topicPartitionOffset) const {
-  const auto& topic = topicPartitionOffset.partitionedTopic;
-  ::pulsar::Client client(
-      config_->getServiceUrl(),
-      config_->getPulsarClientConfiguration());
-  ::pulsar::Reader reader;
-  ::pulsar::ReaderConfiguration readerConfig;
-  const auto createResult = client.createReader(
-      topic, ::pulsar::MessageId::latest(), readerConfig, reader);
-  if (createResult == ::pulsar::ResultTopicNotFound) {
-    client.close();
-    return std::nullopt;
-  }
-  VELOX_CHECK(
-      createResult == ::pulsar::ResultOk,
-      "Failed to create Pulsar reader for topic {} to get current partition position: {}",
-      topic,
-      ::pulsar::strResult(createResult));
-
-  ::pulsar::MessageId messageId;
-  const auto result = reader.getLastMessageId(messageId);
-  reader.close();
-  client.close();
-  VELOX_CHECK(
-      result == ::pulsar::ResultOk,
-      "Failed to get current Pulsar position for partitioned topic {}: {}",
-      topicPartitionOffset.partitionedTopic,
-      ::pulsar::strResult(result));
-  if (messageId.entryId() < 0) {
-    return std::nullopt;
-  }
-  return messageIdString(messageId);
 }
 
 void PulsarDataSource::resetSplitState() {

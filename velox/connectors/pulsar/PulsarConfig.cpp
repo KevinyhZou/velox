@@ -59,6 +59,10 @@ std::string ConnectionConfig::getServiceUrl() const {
   return checkAndGetConfigValue<std::string, true>(kServiceUrl, "");
 }
 
+std::string ConnectionConfig::getAdminUrl() const {
+  return checkAndGetConfigValue<std::string, false>(kAdminUrl, "");
+}
+
 std::string ConnectionConfig::getTopic() const {
   return checkAndGetConfigValue<std::string, true>(kTopic, "");
 }

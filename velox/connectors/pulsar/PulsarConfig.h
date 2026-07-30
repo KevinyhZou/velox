@@ -60,6 +60,7 @@ class ConnectionConfig : public PulsarConfig {
   explicit ConnectionConfig(const ConfigPtr& config) : PulsarConfig(config) {}
 
   static constexpr const char* kServiceUrl = "service.url";
+  static constexpr const char* kAdminUrl = "admin.url";
   static constexpr const char* kTopic = "topic";
   static constexpr const char* kSubscriptionName = "subscription.name";
   static constexpr const char* kConsumerName = "consumer.name";
@@ -85,6 +86,7 @@ class ConnectionConfig : public PulsarConfig {
   static constexpr const uint32_t defaultReceiveTimeoutMills = 100;
 
   std::string getServiceUrl() const;
+  std::string getAdminUrl() const;
   std::string getTopic() const;
   std::string getSubscriptionName() const;
   std::string getConsumerName() const;
