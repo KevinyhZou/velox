@@ -264,6 +264,17 @@ int32_t partitionIndexFromTopicName(
   return folly::to<int32_t>(topic.substr(prefix.size()));
 }
 
+std::string explicitInitialMessageId(const ConnectionConfig& config) {
+  if (!config.exists(ConnectionConfig::kInitialPosition)) {
+    return "";
+  }
+  const auto initialPosition = config.getInitialPosition();
+  if (initialPosition == "earliest" || initialPosition == "latest") {
+    return initialPosition;
+  }
+  VELOX_FAIL("Unsupported Pulsar initial position: {}", initialPosition);
+}
+
 } // namespace
 
 PulsarDataSource::PulsarDataSource(
@@ -315,17 +326,24 @@ void PulsarDataSource::createConsumerForPartitions() {
   std::unordered_map<std::string, TopicPartitionOffset>
       resolvedTopicPartitionOffsetMap;
   std::vector<TopicPartitionOffset> resolvedTopicPartitionOffsets;
+  const auto initialMessageId = explicitInitialMessageId(*config_);
   resolvedTopicPartitionOffsetMap.reserve(topicPartitionOffsets_.size());
   resolvedTopicPartitionOffsets.reserve(topicPartitionOffsets_.size());
   for (const auto& [partitionedTopic, topicPartitionOffset] :
        topicPartitionOffsets_) {
     TopicPartitionOffset resolvedTopicPartitionOffset = topicPartitionOffset;
     if (resolvedTopicPartitionOffset.messageId.empty()) {
-      const auto committedCursor = getCommittedSubscriptionCursor(
-          *config_, resolvedTopicPartitionOffset.partitionedTopic);
-      if (committedCursor.has_value()) {
-        resolvedTopicPartitionOffset.messageId = committedCursor.value();
-        resolvedTopicPartitionOffset.startMessageIdInclusive = false;
+      if (!initialMessageId.empty()) {
+        resolvedTopicPartitionOffset.messageId = initialMessageId;
+        resolvedTopicPartitionOffset.startMessageIdInclusive =
+            initialMessageId == "earliest";
+      } else {
+        const auto committedCursor = getCommittedSubscriptionCursor(
+            *config_, resolvedTopicPartitionOffset.partitionedTopic);
+        if (committedCursor.has_value()) {
+          resolvedTopicPartitionOffset.messageId = committedCursor.value();
+          resolvedTopicPartitionOffset.startMessageIdInclusive = false;
+        }
       }
     }
     LOG(INFO) << fmt::format(
@@ -630,9 +648,18 @@ std::vector<std::string> PulsarDataSource::commit(int64_t) {
   if (checkpointStateToCommit_.empty()) {
     return {};
   }
+
+  auto consumer = consumer_;
+  if (!consumer || consumer->closed()) {
+    LOG(WARNING) << fmt::format(
+        "Skip committing Pulsar checkpoint because consumer is {}.",
+        consumer ? "closed" : "not created");
+    return {};
+  }
+
   for (const auto& [_, topicPartitionOffset] : checkpointAckOffsets_) {
     if (!topicPartitionOffset.messageId.empty()) {
-      consumer_->acknowledge(topicPartitionOffset, true);
+      consumer->acknowledge(topicPartitionOffset, true);
     }
   }
 
