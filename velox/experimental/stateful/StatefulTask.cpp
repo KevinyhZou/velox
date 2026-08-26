@@ -248,17 +248,26 @@ StreamElementPtr StatefulTask::popOutput() {
   return out;
 }
 
-void StatefulTask::finish() {
-  VELOX_CHECK(
-      pendings_.empty(),
-      "Outputs have {} not been consumed before finishing the task. {} {}",
-      pendings_.size(),
-      operatorChain_->detail());
-  operatorChain_->close();
-  // TODO: update operator stats
+void StatefulTask::finish(bool throwException) {
+  if (throwException) {
+    VELOX_CHECK(
+        pendings_.empty(),
+        "Outputs have {} not been consumed before finishing the task. {}",
+        pendings_.size(),
+        operatorChain_ ? operatorChain_->detail() : "<null operator chain>");
+  } else {
+    LOG(ERROR)
+        << "Outputs have {} not been consumed before finishing the task. {}",
+        pendings_.size(),
+        operatorChain_ ? operatorChain_->detail() : "<null operator chain>";
+  }
+  if (operatorChain_) {
+    operatorChain_->close();
+    // TODO: update operator stats
 
-  // remove operators to release memory.
-  operatorChain_.reset();
+    // remove operators to release memory.
+    operatorChain_.reset();
+  }
   driver.reset();
   testingFinish();
 }
